@@ -66,6 +66,9 @@ public:
   using w = func::dmn_0<domains::frequency_domain>;
   using w_VERTEX =
       func::dmn_0<domains::vertex_frequency_domain<domains::COMPACT>>;
+  using tp_time_pos_dmn_t =
+              func::dmn_0<domains::vertex_time_domain<domains::TP_TIME_DOMAIN_POSITIVE>>;
+  using t_VERTEX = tp_time_pos_dmn_t;
 
   using b = func::dmn_0<domains::electron_band_domain>;
   using s = func::dmn_0<domains::electron_spin_domain>;
@@ -134,7 +137,9 @@ public:
   get_dwave_pp_correlator() {
     return dwave_pp_correlator;
   }
-
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_ZZ_chi() {
+    return spin_ZZ_chi;
+  }
   // sp-measurements
   const auto &get_sign_times_M_r_w() const {
     return single_particle_accumulator_obj.get_sign_times_M_r_w();
@@ -209,11 +214,10 @@ protected:
   func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>> G_r_t;
   func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>> G_r_t_stddev;
 
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>> spin_ZZ_chi;
   func::function<double, func::dmn_variadic<b, r_dmn_t>> charge_cluster_moment;
-  func::function<double, func::dmn_variadic<b, r_dmn_t>>
-      magnetic_cluster_moment;
+  func::function<double, func::dmn_variadic<b, r_dmn_t>> magnetic_cluster_moment;
   func::function<double, func::dmn_variadic<b, r_dmn_t>> dwave_pp_correlator;
-
   func::function<std::complex<double>, func::dmn_variadic<nu, nu, r_dmn_t, w>>
       M_r_w_stddev;
 
@@ -245,11 +249,11 @@ CtauxAccumulator<device_t, Parameters, Data>::CtauxAccumulator(
       visited_expansion_order_k("<k>"),
 
       G_r_t("G_r_t_measured"), G_r_t_stddev("G_r_t_stddev"),
+      spin_ZZ_chi("spin-ZZ-susceptibility"),
 
       charge_cluster_moment("charge-cluster-moment"),
       magnetic_cluster_moment("magnetic-cluster-moment"),
       dwave_pp_correlator("dwave-pp-correlator"),
-
       M_r_w_stddev("M_r_w_stddev"),
 
       single_particle_accumulator_obj(parameters_, compute_std_deviation_),
@@ -289,6 +293,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::initialize(
     charge_cluster_moment = 0;
     magnetic_cluster_moment = 0;
     dwave_pp_correlator = 0;
+    spin_ZZ_chi = 0;
 
     MC_two_particle_equal_time_accumulator_obj.initialize();
   }
@@ -327,7 +332,8 @@ void CtauxAccumulator<device_t, Parameters, Data>::finalize() {
                                   .get_magnetic_cluster_moment();
     dwave_pp_correlator =
         MC_two_particle_equal_time_accumulator_obj.get_dwave_pp_correlator();
-  }
+    spin_ZZ_chi = MC_two_particle_equal_time_accumulator_obj.get_spin_ZZ_chi();  
+}
 
   if (perform_tp_accumulation_)
     two_particle_accumulator_.finalize();
@@ -361,7 +367,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::write(Writer &writer) {
     writer.execute(charge_cluster_moment);
     writer.execute(magnetic_cluster_moment);
     writer.execute(dwave_pp_correlator);
-
+    writer.execute(spin_ZZ_chi);
     writer.execute(G_r_t);
     writer.execute(G_r_t_stddev);
   }
@@ -420,7 +426,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::measure() {
 
   accumulate_single_particle_quantities();
 
-  if (DCA_iteration == parameters_.get_dca_iterations() - 1 &&
+  if ((DCA_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
       parameters_.additional_time_measurements())
     accumulate_equal_time_quantities();
 }
@@ -508,6 +514,8 @@ template <dca::linalg::DeviceType device_t, class Parameters, class Data>
 void CtauxAccumulator<device_t, Parameters, Data>::
     accumulate_equal_time_quantities(
         const std::array<linalg::Matrix<AccumType, linalg::CPU>, 2> &M) {
+
+
   MC_two_particle_equal_time_accumulator_obj.compute_G_r_t(
       hs_configuration_[0], M[0], hs_configuration_[1], M[1]);
 
@@ -515,6 +523,8 @@ void CtauxAccumulator<device_t, Parameters, Data>::
 
   MC_two_particle_equal_time_accumulator_obj.accumulate_moments(current_sign);
 
+  MC_two_particle_equal_time_accumulator_obj.accumulate_chi(current_sign);
+  
   MC_two_particle_equal_time_accumulator_obj.accumulate_dwave_pp_correlator(
       current_sign);
 
@@ -538,6 +548,7 @@ void CtauxAccumulator<device_t, Parameters,
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
 void CtauxAccumulator<device_t, Parameters, Data>::sumTo(this_type &other) {
+
   other.get_Gflop() += get_Gflop();
 
   other.accumulated_sign += accumulated_sign;
@@ -546,14 +557,16 @@ void CtauxAccumulator<device_t, Parameters, Data>::sumTo(this_type &other) {
   other.get_visited_expansion_order_k() += visited_expansion_order_k;
   other.get_error_distribution() += error;
 
+
+
+
   // sp-measurements
   single_particle_accumulator_obj.sumTo(other.single_particle_accumulator_obj);
 
   // equal time measurements
-  if (DCA_iteration == parameters_.get_dca_iterations() - 1 &&
+  if ((DCA_iteration == parameters_.get_dca_iterations() - 1|| parameters_.dump_at_each_iteration()) && 
       parameters_.additional_time_measurements())
-    MC_two_particle_equal_time_accumulator_obj.sumTo(
-        other.MC_two_particle_equal_time_accumulator_obj);
+    MC_two_particle_equal_time_accumulator_obj.sumTo(other.MC_two_particle_equal_time_accumulator_obj);
 
   // tp-measurements
   if (perform_tp_accumulation_)

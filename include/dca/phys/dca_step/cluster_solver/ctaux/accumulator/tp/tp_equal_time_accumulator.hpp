@@ -102,6 +102,9 @@ public:
   get_dwave_pp_correlator() {
     return dwave_pp_correlator;
   }
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_ZZ_chi() {
+    return spin_ZZ_chi_accumulated;
+  }
 
   template <class configuration_type, typename RealInp>
   void
@@ -114,6 +117,8 @@ public:
 
   void accumulate_moments(double sign);
 
+  void accumulate_chi(double sign);
+  
   void accumulate_dwave_pp_correlator(double sign);
 
   double get_GFLOP();
@@ -244,13 +249,13 @@ private:
       G_r_t_accumulated_squared;
 
   func::function<double, func::dmn_variadic<b, r_dmn_t>> charge_cluster_moment;
-  func::function<double, func::dmn_variadic<b, r_dmn_t>>
-      magnetic_cluster_moment;
+  func::function<double, func::dmn_variadic<b, r_dmn_t>> magnetic_cluster_moment;
 
   func::function<double, k_dmn_t> dwave_k_factor;
   func::function<double, r_dmn_t> dwave_r_factor;
 
   func::function<double, func::dmn_variadic<b, r_dmn_t>> dwave_pp_correlator;
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>> spin_ZZ_chi_accumulated;
 };
 
 template <class parameters_type, class MOMS_type>
@@ -269,8 +274,8 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type>::TpEqualTimeAccumulator(
 
       charge_cluster_moment("charge-cluster-moment"),
       magnetic_cluster_moment("magnetic-cluster-moment"),
-
-      dwave_pp_correlator("dwave-pp-correlator") {}
+      dwave_pp_correlator("dwave-pp-correlator"),
+      spin_ZZ_chi_accumulated("spin-ZZ-susceptibility"){}
 
 template <class parameters_type, class MOMS_type>
 double TpEqualTimeAccumulator<parameters_type, MOMS_type>::get_GFLOP() {
@@ -293,7 +298,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type>::initialize() {
   magnetic_cluster_moment = 0;
 
   dwave_pp_correlator = 0;
-
+  spin_ZZ_chi_accumulated = 0;
   {
     for (int k_ind = 0; k_ind < k_dmn_t::dmn_size(); k_ind++)
       dwave_k_factor(k_ind) = cos(k_dmn_t::get_elements()[k_ind][0]) -
@@ -774,7 +779,8 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_moments(
             sign * charge_val / t_VERTEX::dmn_size();
         magnetic_cluster_moment(b_ind, r_i) +=
             sign * magnetic_val / t_VERTEX::dmn_size();
-      }
+//     		std::cout<<"MAGG In TP: "<<r_i<<" "<<charge_cluster_moment(b_ind, r_i)<<std::endl;
+	}
     }
   }
 }
@@ -782,6 +788,93 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_moments(
 /*!
  * P_d
  */
+
+
+template<class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_chi(double sign){
+
+  // std::cout << "b_r_t_VERTEX_dmn_t::dmn_size(): " << b_r_t_VERTEX_dmn_t::dmn_size() << "\n";
+  int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt;
+  double upup, updn, spin_ZZ_val;
+  double sfactor = 0.5/((t_VERTEX::dmn_size()-1)*r_dmn_t::dmn_size());
+  // double cfactor = 2*sfactor;
+
+  for(int j=0; j<b_r_t_VERTEX_dmn_t::dmn_size(); j++){
+    b_j = fixed_configuration[j].b_ind;
+    r_j = fixed_configuration[j].r_ind;
+    t_j = fixed_configuration[j].t_ind;
+
+    for(int i=0; i<b_r_t_VERTEX_dmn_t::dmn_size(); i++){
+      b_i = fixed_configuration[i].b_ind;
+      r_i = fixed_configuration[i].r_ind;
+      t_i = fixed_configuration[i].t_ind;
+
+      dr = RClusterDmn::parameter_type::subtract(r_j, r_i);
+      dt = t_i-t_j;
+
+      spin_ZZ_val = 0.0;
+
+      // chi(beta) considered seperately later
+      if(t_i != t_VERTEX::dmn_size()-1 && t_j != t_VERTEX::dmn_size()-1)
+      // if(dt != t_VERTEX::dmn_size()-1)
+      {
+        dt = dt<0 ? dt+t_VERTEX::dmn_size()-1 : dt;
+
+        // connected diagrams:
+        // chi(0) ~ Gdn(0+)*Gup(0-) while Gup(0-) still has positive sign from G0_sign_up(i,j), so change sign here
+        upup = G_r_t_up(i,j)*G_r_t_up(j,i) + G_r_t_dn(i,j)*G_r_t_dn(j,i);
+        updn = G_r_t_dn(i,j)*G_r_t_up(j,i) + G_r_t_up(i,j)*G_r_t_dn(j,i);
+
+        if(dt==0){
+          //spin_XX_chi_accumulated(b_i,b_j,dr,dt) -= sfactor* updn*sign;
+          spin_ZZ_val = -upup;
+          // spin_ZZ_chi_accumulated(b_i,b_j,dr,dt) -= sfactor* upup;
+
+          // charge_chi_accumulated (b_i,b_j,dr,dt) -= cfactor* upup;
+        // }
+        } else{
+         // spin_XX_chi_accumulated(b_i,b_j,dr,dt) += sfactor* updn*sign;
+          spin_ZZ_val = upup;
+          // spin_ZZ_chi_accumulated(b_i,b_j,dr,dt) += sfactor* upup;
+
+          // charge_chi_accumulated (b_i,b_j,dr,dt) += cfactor* upup;
+        }
+
+        // disconnected diagrams:
+        // note that (1-G_sigma)(1-G_sigma') switch to (1+G_sigma)(1+G_sigma') since G(dt=0)<0 needs changing sign
+
+        upup = (1.0+G_r_t_up(i,i))*(1.0+G_r_t_up(j,j)) + (1.0+G_r_t_dn(i,i))*(1.0+G_r_t_dn(j,j));
+        updn = (1.0+G_r_t_up(i,i))*(1.0+G_r_t_dn(j,j)) + (1.0+G_r_t_dn(i,i))*(1.0+G_r_t_up(j,j));
+        spin_ZZ_val += (upup - updn);
+        // spin_ZZ_chi_accumulated(b_i,b_j,dr,dt) += sfactor* (upup - updn);
+
+        // charge_chi_accumulated (b_i,b_j,dr,dt) += cfactor* (upup + updn);
+
+        if(b_i==b_j && dr==0 && dt==0){
+          // correction due to cc+ = 1=c+c
+          updn = G_r_t_up(j,j) + G_r_t_dn(j,j);
+          //spin_XX_chi_accumulated(b_i,b_j,dr,dt) -= sfactor* updn*sign;
+          spin_ZZ_val += -updn;
+          // spin_ZZ_chi_accumulated(b_i,b_j,dr,dt) -= sfactor* updn;
+          // charge_chi_accumulated (b_i,b_j,0,0) -= cfactor* updn;
+        }
+        spin_ZZ_chi_accumulated(b_i,b_j,dr,dt) += spin_ZZ_val * sfactor * sign;
+        // spin_ZZ_chi_accumulated_squared(b_i,b_j,dr,dt) += spin_ZZ_val * spin_ZZ_val * sfactor;
+       // spin_ZZ_chi_stddev(b_i,b_j,dr,dt) += spin_ZZ_val * spin_ZZ_val * sfactor * sign;
+      }
+      // std::cout << "spin_ZZ_val " << spin_ZZ_val << "\n";
+
+      // chi(beta) = chi(0)
+      //spin_XX_chi_accumulated(b_i,b_j,dr,t_VERTEX::dmn_size()-1) = spin_XX_chi_accumulated(b_i,b_j,dr,0);
+      spin_ZZ_chi_accumulated(b_i,b_j,dr,t_VERTEX::dmn_size()-1) = spin_ZZ_chi_accumulated(b_i,b_j,dr,0);
+      //spin_ZZ_chi_stddev(b_i,b_j,dr,t_VERTEX::dmn_size()-1) = spin_ZZ_chi_stddev(b_i,b_j,dr,0);
+      // charge_chi_accumulated (b_i,b_j,dr,t_VERTEX::dmn_size()-1) = charge_chi_accumulated (b_i,b_j,dr,0);
+    }
+  }
+
+
+}
+
 template <class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<
     parameters_type, MOMS_type>::accumulate_dwave_pp_correlator(double sign) {
@@ -986,7 +1079,9 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type>::sumTo(
   other.G_r_t_accumulated += G_r_t_accumulated;
   other.G_r_t_accumulated_squared += G_r_t_accumulated_squared;
   other.charge_cluster_moment += charge_cluster_moment;
+  other.magnetic_cluster_moment += magnetic_cluster_moment;
   other.dwave_pp_correlator += dwave_pp_correlator;
+  other.spin_ZZ_chi_accumulated += spin_ZZ_chi_accumulated;
   other.GFLOP += GFLOP;
 }
 
