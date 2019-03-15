@@ -59,7 +59,8 @@ public:
   static void write(Writer& writer);
 
 private:
-  static void initialize(bool compute_all_transfers, int transfer_index, int cluster_size);
+  //static void initialize(bool compute_all_transfers, int transfer_index, int cluster_size);
+  static void initialize(bool compute_all_momentum_transfers, int transfer_index, int cluster_size);
 
 private:
   static std::vector<int> elements_;
@@ -68,7 +69,7 @@ private:
 
 template <class Parameters>
 void MomentumExchangeDomain::initialize(const Parameters& parameters) {
-  initialize(parameters.compute_all_transfers(), parameters.get_four_point_momentum_transfer_index(),
+  initialize(parameters.compute_all_momentum_transfers(), parameters.get_four_point_momentum_transfer_index(),
              Parameters::KClusterDmn::dmn_size());
 }
 

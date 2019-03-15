@@ -274,7 +274,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::initialize(
 
   MC_accumulator_data::initialize(dca_iteration);
 
-  if (dca_iteration == parameters_.get_dca_iterations() - 1 &&
+  if ((DCA_iteration == parameters_.get_dca_iterations() - 1|| parameters_.dump_at_each_iteration()) &&
       parameters_.get_four_point_type() != NONE)
     perform_tp_accumulation_ = true;
 
