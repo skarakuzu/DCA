@@ -20,6 +20,7 @@
 #include <string>
 
 #include "dca/phys/models/analytic_hamiltonians/bilayer_lattice.hpp"
+#include "dca/phys/models/analytic_hamiltonians/twoorbital_lattice.hpp"
 #include "dca/phys/models/analytic_hamiltonians/twoband_chain.hpp"
 #include "dca/phys/models/analytic_hamiltonians/singleband_chain.hpp"
 // #include "dca/phys/models/analytic_hamiltonians/fourband_lattice.hpp"
@@ -44,6 +45,9 @@ class ModelParameters {};
 
 // Specialization for square lattice bilayer Hubbard model
 #include "model_parameters_bilayer_hubbard.inc"
+
+// Specialization for square lattice 2-orbital Hubbard model
+#include "model_parameters_twoorbital_hubbard.inc"
 
 // Specialization for material models
 #include "model_parameters_material.inc"

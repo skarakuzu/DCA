@@ -204,6 +204,7 @@ void symmetrize_single_particle_function::execute(
     func::function<scalartype, f_dmn_0> f0(f.get_name());
 
     for (int nu_0 = 0; nu_0 < b::dmn_size(); ++nu_0) {
+      // for (int nu_1 = nu_0; nu_1 < nu_0+1; ++nu_1) { // only for diagonal component
       for (int nu_1 = 0; nu_1 < b::dmn_size(); ++nu_1) {
         for (int ind_1 = 0; ind_1 < f_dmn_1::dmn_size(); ++ind_1) {
           for (int ind_0 = 0; ind_0 < f_dmn_0::dmn_size(); ++ind_0)
@@ -222,6 +223,7 @@ void symmetrize_single_particle_function::execute(
     func::function<scalartype, f_dmn_1> f1(f.get_name());
 
     for (int nu_0 = 0; nu_0 < b::dmn_size(); ++nu_0) {
+      // for (int nu_1 = nu_0; nu_1 < nu_0+1; ++nu_1) { // only for diagonal component
       for (int nu_1 = 0; nu_1 < b::dmn_size(); ++nu_1) {
         for (int ind_0 = 0; ind_0 < f_dmn_0::dmn_size(); ++ind_0) {
           for (int ind_1 = 0; ind_1 < f_dmn_1::dmn_size(); ++ind_1)
@@ -244,6 +246,7 @@ void symmetrize_single_particle_function::execute(
 
   for (int spin_ind = 0; spin_ind < s::dmn_size(); ++spin_ind) {
     for (int b_0 = 0; b_0 < b::dmn_size(); ++b_0)
+      // for (int b_1 = b_0; b_1 < b_0+1; ++b_1) // only for diagonal component
       for (int b_1 = 0; b_1 < b::dmn_size(); ++b_1)
         for (int ind_0 = 0; ind_0 < f_dmn_0::dmn_size(); ++ind_0)
           f0(b_0, b_1, ind_0) = f(b_0, spin_ind, b_1, spin_ind, ind_0);
@@ -251,6 +254,7 @@ void symmetrize_single_particle_function::execute(
     symmetrize_single_particle_function::execute(f0, do_diff);
 
     for (int b_0 = 0; b_0 < b::dmn_size(); ++b_0)
+      // for (int b_1 = b_0; b_1 < b_0+1; ++b_1)
       for (int b_1 = 0; b_1 < b::dmn_size(); ++b_1)
         for (int ind_0 = 0; ind_0 < f_dmn_0::dmn_size(); ++ind_0)
           f(b_0, spin_ind, b_1, spin_ind, ind_0) = f0(b_0, b_1, ind_0);
@@ -268,6 +272,7 @@ void symmetrize_single_particle_function::execute(
     for (int ind_1 = 0; ind_1 < f_dmn_1::dmn_size(); ++ind_1) {
       for (int spin_ind = 0; spin_ind < s::dmn_size(); ++spin_ind) {
         for (int b_0 = 0; b_0 < b::dmn_size(); ++b_0)
+          // for (int b_1 = b_0; b_1 < b_0+1; ++b_1) // only for diagonal component
           for (int b_1 = 0; b_1 < b::dmn_size(); ++b_1)
             for (int ind_0 = 0; ind_0 < f_dmn_0::dmn_size(); ++ind_0)
               f0(b_0, b_1, ind_0) = f(b_0, spin_ind, b_1, spin_ind, ind_0, ind_1);
@@ -289,6 +294,7 @@ void symmetrize_single_particle_function::execute(
       for (int spin_ind = 0; spin_ind < s::dmn_size(); ++spin_ind)
         for (int ind_1 = 0; ind_1 < f_dmn_1::dmn_size(); ++ind_1)
           for (int b_1 = 0; b_1 < b::dmn_size(); ++b_1)
+            // for (int b_0 = b_1; b_0 < b_1+1; ++b_0) // only for diagonal component
             for (int b_0 = 0; b_0 < b::dmn_size(); ++b_0)
               f1(b_0, b_1, ind_0, ind_1) = f(b_0, spin_ind, b_1, spin_ind, ind_0, ind_1);
 
@@ -298,6 +304,7 @@ void symmetrize_single_particle_function::execute(
       for (int spin_ind = 0; spin_ind < s::dmn_size(); ++spin_ind)
         for (int ind_1 = 0; ind_1 < f_dmn_1::dmn_size(); ++ind_1)
           for (int b_1 = 0; b_1 < b::dmn_size(); ++b_1)
+            // for (int b_0 = b_1; b_0 < b_1+1; ++b_0) // only for diagonal component
             for (int b_0 = 0; b_0 < b::dmn_size(); ++b_0)
               f(b_0, spin_ind, b_1, spin_ind, ind_0, ind_1) = f1(b_0, b_1, ind_0, ind_1);
   }
@@ -395,10 +402,16 @@ void symmetrize_single_particle_function::executeTimeOrFreq(
     for (int c_ind = 0; c_ind < ClusterDmn::dmn_size(); ++c_ind) {
       for (int b0 = 0; b0 < b::dmn_size(); ++b0) {
         for (int b1 = 0; b1 < b::dmn_size(); ++b1) {
+
+          // if (b0 == b1) { // only for diagonal elements in the orbital index.
+
           scalartype tmp = (f(b0, b1, c_ind, t_ind) - f(b0, b1, c_ind, t_ind + t_0)) / 2.;
 
           f_new(b0, b1, c_ind, t_ind) = tmp;
           f_new(b0, b1, c_ind, t_ind + t_0) = -tmp;
+
+          // }
+
         }
       }
     }
@@ -444,6 +457,9 @@ void symmetrize_single_particle_function::executeTimeOrFreq(
 
       for (int b0 = 0; b0 < b::dmn_size(); ++b0) {
         for (int b1 = 0; b1 < b::dmn_size(); ++b1) {
+
+          // if (b0 == b1) { // only for diagonal elements in the orbital index.
+
           scalartype tmp_0 = f(b0, b1, c_ind, w_ind);
           scalartype tmp_1 = f(b1, b0, opposite_idx, w_0 - w_ind);
 
@@ -451,6 +467,9 @@ void symmetrize_single_particle_function::executeTimeOrFreq(
 
           f_new(b0, b1, c_ind, w_ind) = tmp;
           f_new(b1, b0, opposite_idx, w_0 - w_ind) = std::conj(tmp);
+
+          // }
+
         }
       }
     }
@@ -575,16 +594,24 @@ void symmetrize_single_particle_function::executeCluster(
 
   f_new = scalartype(0.);
 
+  int R_new_ind,b0_new,b1_new;
   for (int S_ind = 0; S_ind < sym_super_cell_dmn_t::dmn_size(); ++S_ind) {
     for (int b0 = 0; b0 < b::dmn_size(); ++b0) {
       for (int b1 = 0; b1 < b::dmn_size(); ++b1) {
         for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); ++r_ind) {
-          int R_new_ind = r_symmetry_matrix(r_ind, 0, S_ind).first;
 
-          int b0_new = r_symmetry_matrix(0, b0, S_ind).second;
-          int b1_new = r_symmetry_matrix(r_ind, b1, S_ind).second;
+          if (b0 == b1) { // only for diagonal elements in the orbital index.
+            R_new_ind = r_symmetry_matrix(r_ind, 0, S_ind).first;
+            b0_new = r_symmetry_matrix(0, b0, S_ind).second;
+            b1_new = r_symmetry_matrix(r_ind, b1, S_ind).second;
+          } else {
+            R_new_ind = r_ind;
+            b0_new = b0;
+            b1_new = b1;
+          }
 
           f_new(b0, b1, r_ind) += f(b0_new, b1_new, R_new_ind);
+
         }
       }
     }
@@ -647,7 +674,7 @@ void symmetrize_single_particle_function::executeCluster(
   }
 
   if (do_diff)
-    difference(max, f.get_name(), "k-cluster-domain of the function : " + f.get_name() + "\n");
+    difference(max, f.get_name(), "in executeCluster: k-cluster-domain of the function : " + f.get_name() + "\n");
 }
 
 template <typename scalartype, typename scalar_type, int D, domains::CLUSTER_NAMES N,
@@ -671,16 +698,24 @@ void symmetrize_single_particle_function::executeCluster(
 
   f_new = scalartype(0.);
 
+  int K_new_ind,b0_new,b1_new;
   for (int S_ind = 0; S_ind < sym_super_cell_dmn_t::dmn_size(); ++S_ind) {
     for (int b0 = 0; b0 < b::dmn_size(); ++b0) {
       for (int b1 = 0; b1 < b::dmn_size(); ++b1) {
         for (int k_ind = 0; k_ind < k_dmn_t::dmn_size(); ++k_ind) {
-          int K_new_ind = k_symmetry_matrix(k_ind, b0, S_ind).first;  // FIXME: b0 -> b1
-
-          int b0_new = k_symmetry_matrix(0, b0, S_ind).second;
-          int b1_new = k_symmetry_matrix(k_ind, b1, S_ind).second;
+      
+          if (b0 == b1) { // only for diagonal elements in the orbital index.
+            K_new_ind = k_symmetry_matrix(k_ind, b0, S_ind).first;  // FIXME: b0 -> b1
+            b0_new = k_symmetry_matrix(0, b0, S_ind).second;
+            b1_new = k_symmetry_matrix(k_ind, b1, S_ind).second;
+          } else {
+            K_new_ind = k_ind;  // FIXME: b0 -> b1
+            b0_new = b0;
+            b1_new = b1;
+          }
 
           f_new(b0, b1, k_ind) += f(b0_new, b1_new, K_new_ind);
+
         }
       }
     }
@@ -696,7 +731,7 @@ void symmetrize_single_particle_function::executeCluster(
   }
 
   if (do_diff)
-    difference(max, f.get_name(), "k-clusterdomain of the function : " + f.get_name() + "\n");
+    difference(max, f.get_name(), "in bb executeCluster: k-clusterdomain of the function : " + f.get_name() + "\n");
 }
 
 template <typename ClusterDmn>
