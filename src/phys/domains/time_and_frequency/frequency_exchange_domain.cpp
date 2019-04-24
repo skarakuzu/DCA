@@ -23,9 +23,9 @@ std::vector<int> FrequencyExchangeDomain::elements_;
 bool FrequencyExchangeDomain::initialized_ = false;
 int FrequencyExchangeDomain::extension_size_ = -1;
 
-void FrequencyExchangeDomain::initialize(const bool compute_all_transfers,
+void FrequencyExchangeDomain::initialize(const bool compute_all_frequency_transfers,
                                          const int frequency_transfer) {
-  if (compute_all_transfers) {
+  if (compute_all_frequency_transfers) {
     if (frequency_transfer < 0)
       throw(
           std::logic_error("The frequency transfer for multiple transfers must be non-negative."));

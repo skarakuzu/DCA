@@ -20,9 +20,9 @@ namespace domains {
 std::vector<int> MomentumExchangeDomain::elements_;
 bool MomentumExchangeDomain::initialized_ = false;
 
-void MomentumExchangeDomain::initialize(const bool compute_all_transfers, const int transfer_index,
+void MomentumExchangeDomain::initialize(const bool compute_all_momentum_transfers, const int transfer_index,
                                         const int cluster_size) {
-  if (compute_all_transfers) {
+  if (compute_all_momentum_transfers) {
     ;
     elements_.resize(cluster_size);
     int idx_value = 0;

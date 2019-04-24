@@ -255,7 +255,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::initialize(int dca_iteration)
 
   MC_accumulator_data::initialize(dca_iteration);
 
-  if (dca_iteration == parameters_.get_dca_iterations() - 1 &&
+  if ((dca_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
       parameters_.get_four_point_type() != NONE)
     perform_tp_accumulation_ = true;
 
@@ -396,7 +396,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::measure() {
 
   accumulate_single_particle_quantities();
 
-  if (DCA_iteration == parameters_.get_dca_iterations() - 1 &&
+  if ((DCA_iteration == parameters_.get_dca_iterations() - 1|| parameters_.dump_at_each_iteration()) &&
       parameters_.additional_time_measurements())
     accumulate_equal_time_quantities();
 }

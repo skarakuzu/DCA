@@ -205,12 +205,12 @@ template <class QmciSolver>
 template <typename dca_info_struct_t>
 double StdThreadQmciClusterSolver<QmciSolver>::finalize(dca_info_struct_t& dca_info_struct) {
   Profiler profiler(__FUNCTION__, "stdthread-MC-Integration", __LINE__);
-  if (dca_iteration_ == parameters_.get_dca_iterations() - 1)
+  if (dca_iteration_ == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration())
     BaseClass::computeErrorBars();
 
   double L2_Sigma_difference = QmciSolver::finalize(dca_info_struct);
 
-  if (dca_iteration_ == parameters_.get_dca_iterations() - 1)
+  if (dca_iteration_ == parameters_.get_dca_iterations() - 1|| parameters_.dump_at_each_iteration())
     writeConfigurations();
 
   return L2_Sigma_difference;

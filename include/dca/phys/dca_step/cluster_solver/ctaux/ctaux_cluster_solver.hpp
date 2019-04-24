@@ -204,7 +204,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::initialize(int dca_iteratio
 
   averaged_ = false;
   compute_jack_knife_ =
-      (dca_iteration == parameters_.get_dca_iterations() - 1) &&
+      (dca_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
       (parameters_.get_error_computation_type() == ErrorComputationType::JACK_KNIFE);
 
   if (concurrency_.id() == concurrency_.first())
@@ -280,7 +280,7 @@ double CtauxClusterSolver<device_t, Parameters, Data>::finalize(dca_info_struct_
     }
   }
 
-  if (dca_iteration_ == parameters_.get_dca_iterations() - 1 &&
+  if ((dca_iteration_ == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
       parameters_.get_four_point_type() != NONE)
     data_.get_G4() /= parameters_.get_beta() * parameters_.get_beta();
 
@@ -395,7 +395,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::computeErrorBars() {
 
   // sum G4
   if (parameters_.get_four_point_type() != NONE &&
-      dca_iteration_ == parameters_.get_dca_iterations() - 1) {
+      (dca_iteration_ == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration())) {
     if (concurrency_.id() == concurrency_.first())
       std::cout << "\n\t\t compute-error-bars on G4\t" << dca::util::print_time() << "\n\n";
 
@@ -468,7 +468,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
 
   // sum G4
   if (parameters_.get_four_point_type() != NONE &&
-      dca_iteration_ == parameters_.get_dca_iterations() - 1) {
+      (dca_iteration_ == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration())) {
     Profiler profiler("QMC-two-particle-Greens-function", "QMC-collectives", __LINE__);
     auto& G4 = data_.get_G4();
     G4 = accumulator_.get_sign_times_G4();

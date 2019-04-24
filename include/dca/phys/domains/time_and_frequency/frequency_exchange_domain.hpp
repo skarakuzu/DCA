@@ -65,7 +65,7 @@ public:
   static void write(Writer& writer);
 
 private:
-  static void initialize(bool compute_all_transfers, int frequency_transfer);
+  static void initialize(bool compute_all_frequency_transfers, int frequency_transfer);
 
 private:
   static std::vector<int> elements_;
@@ -75,7 +75,7 @@ private:
 
 template <class Parameters>
 void FrequencyExchangeDomain::initialize(const Parameters& parameters) {
-  initialize(parameters.compute_all_transfers(),parameters.get_four_point_frequency_transfer());
+  initialize(parameters.compute_all_frequency_transfers(),parameters.get_four_point_frequency_transfer());
 }
 
 template <class Writer>

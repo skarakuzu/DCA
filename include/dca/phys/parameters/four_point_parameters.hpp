@@ -40,7 +40,8 @@ public:
       : four_point_type_(NONE),
         four_point_momentum_transfer_input_(lattice_dimension, 0.),
         four_point_frequency_transfer_(0),
-        compute_all_transfers_(false) {}
+        compute_all_momentum_transfers_(false),
+        compute_all_frequency_transfers_(false) {}
 
   template <typename Concurrency>
   int getBufferSize(const Concurrency& concurrency) const;
@@ -92,8 +93,11 @@ public:
 
   // Returns true if all possible momentum and frequency exchanges are computed, ignoring the values
   // of 'get_four_point_momentum_transfer' and 'get_four_point_momentum_transfer_index'.
-  bool compute_all_transfers() const {
-    return compute_all_transfers_;
+  bool compute_all_momentum_transfers() const {
+    return compute_all_momentum_transfers_;
+  }
+  bool compute_all_frequency_transfers() const {
+    return compute_all_frequency_transfers_;
   }
 
 private:
@@ -102,7 +106,8 @@ private:
   FourPointType four_point_type_;
   std::vector<double> four_point_momentum_transfer_input_;
   int four_point_frequency_transfer_;
-  bool compute_all_transfers_;
+  bool compute_all_momentum_transfers_;
+  bool compute_all_frequency_transfers_;
 };
 
 template <int lattice_dimension>
@@ -113,7 +118,8 @@ int FourPointParameters<lattice_dimension>::getBufferSize(const Concurrency& con
   buffer_size += concurrency.get_buffer_size(four_point_type_);
   buffer_size += concurrency.get_buffer_size(four_point_momentum_transfer_input_);
   buffer_size += concurrency.get_buffer_size(four_point_frequency_transfer_);
-  buffer_size += concurrency.get_buffer_size(compute_all_transfers_);
+  buffer_size += concurrency.get_buffer_size(compute_all_momentum_transfers_);
+  buffer_size += concurrency.get_buffer_size(compute_all_frequency_transfers_);
 
   return buffer_size;
 }
@@ -125,7 +131,8 @@ void FourPointParameters<lattice_dimension>::pack(const Concurrency& concurrency
   concurrency.pack(buffer, buffer_size, position, four_point_type_);
   concurrency.pack(buffer, buffer_size, position, four_point_momentum_transfer_input_);
   concurrency.pack(buffer, buffer_size, position, four_point_frequency_transfer_);
-  concurrency.pack(buffer, buffer_size, position, compute_all_transfers_);
+  concurrency.pack(buffer, buffer_size, position, compute_all_momentum_transfers_);
+  concurrency.pack(buffer, buffer_size, position, compute_all_frequency_transfers_);
 }
 
 template <int lattice_dimension>
@@ -135,7 +142,8 @@ void FourPointParameters<lattice_dimension>::unpack(const Concurrency& concurren
   concurrency.unpack(buffer, buffer_size, position, four_point_type_);
   concurrency.unpack(buffer, buffer_size, position, four_point_momentum_transfer_input_);
   concurrency.unpack(buffer, buffer_size, position, four_point_frequency_transfer_);
-  concurrency.unpack(buffer, buffer_size, position, compute_all_transfers_);
+  concurrency.unpack(buffer, buffer_size, position, compute_all_momentum_transfers_);
+  concurrency.unpack(buffer, buffer_size, position, compute_all_frequency_transfers_);
 }
 
 template <int lattice_dimension>
@@ -162,7 +170,12 @@ void FourPointParameters<lattice_dimension>::readWrite(ReaderOrWriter& reader_or
     catch (const std::exception& r_e) {
     }
     try {
-      reader_or_writer.execute("compute-all-transfers", compute_all_transfers_);
+      reader_or_writer.execute("compute-all-momentum-transfers", compute_all_momentum_transfers_);
+    }
+    catch (const std::exception& r_e) {
+    }
+    try {
+      reader_or_writer.execute("compute-all-frequency-transfers", compute_all_frequency_transfers_);
     }
     catch (const std::exception& r_e) {
     }
@@ -172,7 +185,7 @@ void FourPointParameters<lattice_dimension>::readWrite(ReaderOrWriter& reader_or
   catch (const std::exception& r_e) {
   }
 
-  if (compute_all_transfers_ && four_point_frequency_transfer_ < 0)
+  if (compute_all_frequency_transfers_ && four_point_frequency_transfer_ < 0)
     throw(std::logic_error(
         "When compute-all-transfers is set, a greater than 0 frequency-transfer must be chosen."));
 }
