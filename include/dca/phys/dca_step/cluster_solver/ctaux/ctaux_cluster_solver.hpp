@@ -144,7 +144,7 @@ private:
   func::function<std::complex<double>, NuNuKClusterWDmn> Sigma_old_;
   func::function<std::complex<double>, NuNuKClusterWDmn> Sigma_new_;
 
-  int accumulated_sign_;
+  double accumulated_sign_;
   func::function<std::complex<double>, NuNuRClusterWDmn> M_r_w_;
   func::function<std::complex<double>, NuNuRClusterWDmn> M_r_w_squared_;
 
