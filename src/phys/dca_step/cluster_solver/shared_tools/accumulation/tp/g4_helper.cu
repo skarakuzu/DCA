@@ -54,7 +54,7 @@ void G4Helper::set(int nb, int nk, int nw_pos, const std::vector<int>& delta_k,
                                     static_cast<int>(delta_k.size()),
                                     static_cast<int>(delta_w.size())};
 
-    std::array<int, 10> steps;
+    std::array<unsigned int, 10> steps;
     steps[0] = 1;
     for (std::size_t i = 1; i < steps.size(); ++i)
       steps[i] = steps[i - 1] * sizes[i - 1];
