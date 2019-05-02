@@ -47,6 +47,10 @@ public:
 
   using b = func::dmn_0<domains::electron_band_domain>;
   using s = func::dmn_0<domains::electron_spin_domain>;
+  using nu = func::dmn_variadic<b, s>;  // orbital-spin index
+  using w = func::dmn_0<domains::frequency_domain>;
+
+
   using k_DCA =
       func::dmn_0<domains::cluster_domain<double, ParametersType::lattice_type::DIMENSION, domains::CLUSTER,
                                           domains::MOMENTUM_SPACE, domains::BRILLOUIN_ZONE>>;
@@ -67,7 +71,7 @@ public:
   DcaLoop(ParametersType& parameters_ref, DcaDataType& MOMS_ref, concurrency_type& concurrency_ref);
 
   void read();
-  void write();
+  void write(std::string id="");
 
   void initialize();
   void execute();
@@ -140,9 +144,9 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::read() {
 }
 
 template <typename ParametersType, typename DcaDataType, typename MCIntegratorType>
-void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::write() {
+void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::write(std::string id) {
   const std::string& output_format = parameters.get_output_format();
-  const std::string& file_name = parameters.get_directory() + parameters.get_filename_dca();
+  const std::string& file_name = parameters.get_directory() + id + parameters.get_filename_dca();
 
   std::cout << "\n\n\t\t start writing " << file_name << "\t" << dca::util::print_time() << "\n\n";
 
@@ -184,8 +188,15 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::initialize() {
 
 template <typename ParametersType, typename DcaDataType, typename MCIntegratorType>
 void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::execute() {
+
+   // Store initial Sigma and use this in every iteration if dump_at_each_iteration() == true
+  func::function<std::complex<double>, func::dmn_variadic<nu, nu, k_DCA, w>> Sigma0(MOMS.Sigma);
+
+
   for (int i = 0; i < parameters.get_dca_iterations(); i++) {
     adjust_chemical_potential();
+
+    if (parameters.dump_at_each_iteration()) MOMS.Sigma = Sigma0;
 
     perform_cluster_mapping();
 
@@ -201,6 +212,14 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::execute() {
     perform_lattice_mapping();
 
     update_DCA_loop_data_functions(i);
+
+    if (parameters.dump_at_each_iteration()) {
+      finalize();
+      if (concurrency.id() == concurrency.first()) {
+        std::cout << "\nProcessor " << concurrency.id() << " is writing data " << std::endl;
+        write(std::to_string(i));
+      }
+    }
 
     if (L2_Sigma_difference <
         parameters.get_dca_accuracy())  // set the acquired accuracy on |Sigma_QMC - Sigma_cg|

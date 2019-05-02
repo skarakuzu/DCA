@@ -396,8 +396,8 @@ void CtauxAccumulator<device_t, Parameters, Data>::measure() {
 
   accumulate_single_particle_quantities();
 
-  if (DCA_iteration == parameters_.get_dca_iterations() - 1 &&
-      parameters_.additional_time_measurements())
+  if ((DCA_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration())
+        && parameters_.additional_time_measurements())
     accumulate_equal_time_quantities();
 }
 
