@@ -280,10 +280,6 @@ double CtauxClusterSolver<device_t, Parameters, Data>::finalize(dca_info_struct_
     }
   }
 
-  if ((dca_iteration_ == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
-      parameters_.get_four_point_type() != NONE)
-    data_.get_G4() /= parameters_.get_beta() * parameters_.get_beta();
-
   if (compute_jack_knife_)
     data_.get_G4_error() = concurrency_.jackknifeError(data_.get_G4(), true);
 
@@ -415,6 +411,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
       concurrency_.sum(f);
   };
 
+  const double local_time = total_time_;
   {
     Profiler profiler("Scalars", "QMC-collectives", __LINE__);
     concurrency_.sum(total_time_);
@@ -425,8 +422,10 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
 
   if (concurrency_.id() == concurrency_.first())
     std::cout << "\n\t\t Collect measurements \t" << dca::util::print_time() << "\n"
-              << "\n\t\t\t QMC-time : " << total_time_ << " [sec]"
-              << "\n\t\t\t Gflops   : " << accumulator_.get_Gflop() / total_time_ << " [Gf]"
+              << "\n\t\t\t QMC-local-time : " << local_time << " [sec]"
+              << "\n\t\t\t QMC-total-time : " << total_time_ << " [sec]"
+              << "\n\t\t\t Gflop   : " << accumulator_.get_Gflop() << " [Gf]"
+              << "\n\t\t\t Gflop/s   : " << accumulator_.get_Gflop() / local_time << " [Gf/s]"
               << "\n\t\t\t sign     : " << accumulated_sign_ / parameters_.get_measurements()
               << " \n";
 
@@ -455,10 +454,16 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
     accumulator_.get_G_r_t() /= accumulated_sign_;
     accumulator_.get_G_r_t_stddev() /= accumulated_sign_ * std::sqrt(parameters_.get_measurements());
 
+    concurrency_.sum(accumulator_.get_spin_ZZ_chi());
+    concurrency_.sum(accumulator_.get_spin_ZZ_chi_stddev());
+    concurrency_.sum(accumulator_.get_spin_XX_chi());
     concurrency_.sum(accumulator_.get_charge_cluster_moment());
     concurrency_.sum(accumulator_.get_magnetic_cluster_moment());
     concurrency_.sum(accumulator_.get_dwave_pp_correlator());
 
+    accumulator_.get_spin_ZZ_chi() /= accumulated_sign_;
+    accumulator_.get_spin_ZZ_chi_stddev() /= accumulated_sign_;
+    accumulator_.get_spin_XX_chi() /= accumulated_sign_;
     accumulator_.get_charge_cluster_moment() /= accumulated_sign_;
     accumulator_.get_magnetic_cluster_moment() /= accumulated_sign_;
     accumulator_.get_dwave_pp_correlator() /= accumulated_sign_;
@@ -473,7 +478,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
     auto& G4 = data_.get_G4();
     G4 = accumulator_.get_sign_times_G4();
     collect(G4);
-    G4 /= accumulated_sign_;
+    G4 /= accumulated_sign_ * parameters_.get_beta() * parameters_.get_beta();
   }
 
   concurrency_.sum(accumulator_.get_visited_expansion_order_k());
@@ -820,8 +825,8 @@ auto CtauxClusterSolver<device_t, Parameters, Data>::local_G_k_w() const {
   return G_k_w_new;
 }
 
-}  // solver
-}  // phys
-}  // dca
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca
 
 #endif  // DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_CTAUX_CLUSTER_SOLVER_HPP
