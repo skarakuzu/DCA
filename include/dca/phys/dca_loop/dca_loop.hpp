@@ -194,7 +194,7 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::execute() {
 
 
   for (int i = 0; i < parameters.get_dca_iterations(); i++) {
-    adjust_chemical_potential();
+    if (!parameters.dump_at_each_iteration()) adjust_chemical_potential();
 
     if (parameters.dump_at_each_iteration()) MOMS.Sigma = Sigma0;
 
