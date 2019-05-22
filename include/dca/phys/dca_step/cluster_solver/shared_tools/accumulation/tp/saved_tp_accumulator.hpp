@@ -83,8 +83,6 @@ public:
 
   // Returns the accumulated Green's function.
   const auto& get_sign_times_G4() const;
-  const auto& get_sign_times_G4_sum() const;
-
 
   // Sums the accumulated Green's function to the accumulated Green's function of other_acc.
   void sumTo(this_type& other_acc);
@@ -164,8 +162,6 @@ protected:
 
   std::unique_ptr<TpGreenFunction> G4_;
 
-  std::unique_ptr<TpGreenFunction_sum> G4_sum_;
-
   func::function<Complex, func::dmn_variadic<BDmn, BDmn, SDmn, KDmn, WTpExtDmn>> G0_;
 
   int sign_;
@@ -200,7 +196,6 @@ TpAccumulator<Parameters, linalg::CPU>::TpAccumulator(
 template <class Parameters>
 void TpAccumulator<Parameters, linalg::CPU>::resetAccumulation(unsigned int /*dca_loop*/) {
   G4_.reset(new TpGreenFunction("G4"));
-  G4_sum_.reset(new TpGreenFunction_sum("G4-sum"));
   initializeG0();
 }
 
@@ -415,21 +410,13 @@ double TpAccumulator<Parameters, linalg::CPU>::updateG4() {
               for (int w1 = 0; w1 < WTpDmn::dmn_size(); ++w1)
                 for (int k1 = 0; k1 < KDmn::dmn_size(); ++k1) {
                   Complex* const G4_ptr = &(*G4_)(0, 0, 0, 0, k1, w1, k2, w2, k_ex_idx, w_ex_idx);
-                  Complex* const G4_sum_ptr = &(*G4_sum_)(0, 0, 0, 0, k_ex_idx, w_ex_idx);
-                 // updateG4SpinDifference(G4_sum_ptr, -1, k1, momentum_sum(k1, k_ex), w1,
-                 //                        w_plus_w_ex(w1, w_ex), momentum_sum(k2, k_ex), k2,
-                 //                        w_plus_w_ex(w2, w_ex), w2, sign_over_2, false);
                   updateG4SpinDifference(G4_ptr, -1, k1, momentum_sum(k1, k_ex), w1,
                                          w_plus_w_ex(w1, w_ex), momentum_sum(k2, k_ex), k2,
                                          w_plus_w_ex(w2, w_ex), w2, sign_over_2, false);
-                  for (int s = 0; s < 2; ++s){
-                   // updateG4Atomic(G4_sum_ptr, s, k1, k2, w1, w2, s, momentum_sum(k2, k_ex),
-                   //                momentum_sum(k1, k_ex), w_plus_w_ex(w2, w_ex),
-                   //                w_plus_w_ex(w1, w_ex), -sign_over_2, true);
+                  for (int s = 0; s < 2; ++s)
                     updateG4Atomic(G4_ptr, s, k1, k2, w1, w2, s, momentum_sum(k2, k_ex),
                                    momentum_sum(k1, k_ex), w_plus_w_ex(w2, w_ex),
                                    w_plus_w_ex(w1, w_ex), -sign_over_2, true);
-					      }
                 }
         }
       }
@@ -597,16 +584,7 @@ template <class Parameters>
 const auto& TpAccumulator<Parameters, linalg::CPU>::get_sign_times_G4() const {
   if (!G4_)
     throw(std::logic_error("There is no G4 stored in this class."));
-  //return *G4_sum_;
   return *G4_;
-}
-
-template <class Parameters>
-const auto& TpAccumulator<Parameters, linalg::CPU>::get_sign_times_G4_sum() const {
-  if (!G4_sum_)
-    throw(std::logic_error("There is no G4-sum stored in this class."));
-  //return *G4_sum_;
-  return *G4_sum_;
 }
 
 template <class Parameters>
@@ -617,13 +595,8 @@ void TpAccumulator<Parameters, linalg::CPU>::sumTo(this_type& other_one) {
   if (!other_one.G4_)
     other_one.G4_.reset(new TpGreenFunction("G4"));
   *(other_one.G4_) += *G4_;
-  
-  if (!other_one.G4_sum_)
-    other_one.G4_sum_.reset(new TpGreenFunction_sum("G4-sum"));
-  *(other_one.G4_sum_) += *G4_sum_;
 
   G4_.release();
-  G4_sum_.release();
 }
 
 }  // namespace accumulator

@@ -97,6 +97,9 @@ public:
       func::function<std::complex<TpAccumulatorScalar>,
                      func::dmn_variadic<BDmn, BDmn, BDmn, BDmn, KClusterDmn, WVertexDmn,
                                         KClusterDmn, WVertexDmn, KExchangeDmn, WExchangeDmn>>;
+  using TpGreensFunction_sum =
+      func::function<std::complex<TpAccumulatorScalar>,
+                     func::dmn_variadic<BDmn, BDmn, BDmn, BDmn, KExchangeDmn, WExchangeDmn>>;
 
   DcaData(Parameters& parameters_ref);
 
@@ -213,6 +216,21 @@ public:  // Optional members getters.
       G4_err_.reset(new TpGreensFunction("G4-stddev"));
     return *G4_err_;
   }
+  auto& get_G4_sum() {
+    if (not G4_sum_)
+      G4_sum_.reset(new TpGreensFunction_sum("G4-sum"));
+    return *G4_sum_;
+  }
+  auto& get_G4_sum_error() {
+    if (not G4_sum_err_)
+      G4_sum_err_.reset(new TpGreensFunction_sum("G4-sum-error"));
+    return *G4_sum_err_;
+  }
+  auto& get_G4_sum_stdv() {
+    if (not G4_sum_err_)
+      G4_sum_err_.reset(new TpGreensFunction_sum("G4-sum-stddev"));
+    return *G4_sum_err_;
+  }
   auto& get_non_density_interactions() {
     if (not non_density_interactions_)
       non_density_interactions_.reset(
@@ -230,6 +248,8 @@ private:  // Optional members.
   std::unique_ptr<SpGreensFunction> Sigma_err_;
   std::unique_ptr<TpGreensFunction> G4_;
   std::unique_ptr<TpGreensFunction> G4_err_;
+  std::unique_ptr<TpGreensFunction_sum> G4_sum_;
+  std::unique_ptr<TpGreensFunction_sum> G4_sum_err_;
   std::unique_ptr<func::function<double, func::dmn_variadic<NuDmn, NuDmn, NuDmn, NuDmn, RClusterDmn>>>
       non_density_interactions_;
 };

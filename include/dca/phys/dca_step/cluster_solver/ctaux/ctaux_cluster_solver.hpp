@@ -479,6 +479,10 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
     G4 = accumulator_.get_sign_times_G4();
     collect(G4);
     G4 /= accumulated_sign_ * parameters_.get_beta() * parameters_.get_beta();
+    auto& G4_sum = data_.get_G4_sum();
+    G4_sum = accumulator_.get_sign_times_G4_sum();
+    collect(G4_sum);
+    G4_sum /= accumulated_sign_ * parameters_.get_beta() * parameters_.get_beta();
   }
 
   concurrency_.sum(accumulator_.get_visited_expansion_order_k());

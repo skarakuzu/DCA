@@ -152,6 +152,9 @@ public:
   const auto& get_sign_times_G4() {
     return two_particle_accumulator_.get_sign_times_G4();
   }
+  const auto& get_sign_times_G4_sum() {
+    return two_particle_accumulator_.get_sign_times_G4_sum();
+  }
 
   bool compute_std_deviation() const {
     return compute_std_deviation_;
