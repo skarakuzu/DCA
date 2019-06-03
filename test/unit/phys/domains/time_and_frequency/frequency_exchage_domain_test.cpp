@@ -19,6 +19,13 @@ struct MockParameters {
   bool compute_all_transfers() const {
     return compute_all_transfers_;
   }
+  bool compute_all_frequency_transfers() const {
+    return compute_all_transfers_;
+  }
+  bool compute_all_momentum_transfers() const {
+    return compute_all_transfers_;
+  }
+
   int get_four_point_frequency_transfer() const {
     return fp_freq_exchange_;
   }
