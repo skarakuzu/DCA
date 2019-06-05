@@ -206,24 +206,34 @@ void bilayer_lattice<point_group_type>::initialize_H_0(
 
   const auto t = parameters.get_t();
   const auto t_prime = parameters.get_t_prime();
+  const auto t_pp = parameters.get_t_pp();
+  
   const auto t_perp = parameters.get_t_perp();
+  const auto t_perp_p = parameters.get_t_perp_p();
+  const auto t_perp_pp = parameters.get_t_perp_pp();
 
   H_0 = ScalarType(0);
 
   for (int k_ind = 0; k_ind < KDmn::dmn_size(); ++k_ind) {
     const auto& k = k_vecs[k_ind];
-    const auto val =
-        -2. * t * (std::cos(k[0]) + std::cos(k[1])) - 4. * t_prime * std::cos(k[0]) * std::cos(k[1]);
+    const auto val1 = -2. * t * (std::cos(k[0]) + std::cos(k[1]));
+    const auto val2 = -4. * t_prime * std::cos(k[0]) * std::cos(k[1]);
+    const auto val3 = -2. * t_pp * ( std::cos(2.*k[0]) + std::cos(2.*k[1]) );
+    const auto ek_intra = val1 + val2 + val3;
 
-    H_0(0, 0, 0, 0, k_ind) = val;
-    H_0(0, 1, 0, 1, k_ind) = val;
-    H_0(1, 0, 1, 0, k_ind) = val;
-    H_0(1, 1, 1, 1, k_ind) = val;
+    const auto val4 = - t_perp - 4. * t_perp_p * std::cos(k[0]) * std::cos(k[1]);
+    const auto val5 = - 2. * t_perp_pp * ( std::cos(2.*k[0]) + std::cos(2.*k[1]) );
+    const auto ek_inter = val4 + val5;
 
-    H_0(0, 0, 1, 0, k_ind) = -t_perp;
-    H_0(0, 1, 1, 1, k_ind) = -t_perp;
-    H_0(1, 0, 0, 0, k_ind) = -t_perp;
-    H_0(1, 1, 0, 1, k_ind) = -t_perp;
+    H_0(0, 0, 0, 0, k_ind) = ek_intra;
+    H_0(0, 1, 0, 1, k_ind) = ek_intra;
+    H_0(1, 0, 1, 0, k_ind) = ek_intra;
+    H_0(1, 1, 1, 1, k_ind) = ek_intra;
+
+    H_0(0, 0, 1, 0, k_ind) = ek_inter;
+    H_0(0, 1, 1, 1, k_ind) = ek_inter;
+    H_0(1, 0, 0, 0, k_ind) = ek_inter;
+    H_0(1, 1, 0, 1, k_ind) = ek_inter;
   }
 }
 

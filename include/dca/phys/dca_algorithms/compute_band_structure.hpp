@@ -78,6 +78,8 @@ void compute_band_structure::execute(const ParametersType& parameters,
   brillouin_zone_cut_domain_type::get_size() = collection_k_vecs.size();
   brillouin_zone_cut_domain_type::get_elements() = collection_k_vecs;
 
+
+
   band_structure.reset();
 
   // Compute H(k).
