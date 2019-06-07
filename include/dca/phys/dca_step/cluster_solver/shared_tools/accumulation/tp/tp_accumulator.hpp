@@ -116,7 +116,7 @@ protected:
       func::function<Complex, func::dmn_variadic<BDmn, BDmn, SDmn, KDmn, KDmn, WTpExtPosDmn, WTpExtDmn>>;
 
   using TpGreenFunction = typename Data::TpGreensFunction; //include/dca/phys/dca_data/dca_data.hpp check this
-  using TpGreenFunction_sum = typename Data::TpGreensFunction_sum; //include/dca/phys/dca_data/dca_data.hpp check this
+  using TpGreenFunctionSum = typename Data::TpGreensFunctionSum; //include/dca/phys/dca_data/dca_data.hpp check this
   using Matrix = linalg::Matrix<Complex, linalg::CPU>;
 
   void initializeG0();
@@ -164,7 +164,7 @@ protected:
 
   std::unique_ptr<TpGreenFunction> G4_;
 
-  std::unique_ptr<TpGreenFunction_sum> G4_sum_;
+  std::unique_ptr<TpGreenFunctionSum> G4_sum_;
 
   func::function<Complex, func::dmn_variadic<BDmn, BDmn, SDmn, KDmn, WTpExtDmn>> G0_;
 
@@ -200,7 +200,7 @@ TpAccumulator<Parameters, linalg::CPU>::TpAccumulator(
 template <class Parameters>
 void TpAccumulator<Parameters, linalg::CPU>::resetAccumulation(unsigned int /*dca_loop*/) {
   G4_.reset(new TpGreenFunction("G4"));
-  G4_sum_.reset(new TpGreenFunction_sum("G4-sum"));
+  G4_sum_.reset(new TpGreenFunctionSum("G4-sum"));
   initializeG0();
 }
 
@@ -619,7 +619,7 @@ void TpAccumulator<Parameters, linalg::CPU>::sumTo(this_type& other_one) {
   *(other_one.G4_) += *G4_;
   
   if (!other_one.G4_sum_)
-    other_one.G4_sum_.reset(new TpGreenFunction_sum("G4-sum"));
+    other_one.G4_sum_.reset(new TpGreenFunctionSum("G4-sum"));
   *(other_one.G4_sum_) += *G4_sum_;
 
   G4_.release();

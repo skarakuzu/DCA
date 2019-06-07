@@ -61,6 +61,13 @@ public:
     four_point_type_ = type;
   }
 
+    void set_compute_all_momentum_transfers(bool flag) {
+	compute_all_momentum_transfers_ = flag;
+    }
+    void set_compute_all_frequency_transfers(bool flag) {
+	compute_all_frequency_transfers_ = flag;
+    }
+    
   const std::vector<double>& get_four_point_momentum_transfer_input() const {
     return four_point_momentum_transfer_input_;
   }
