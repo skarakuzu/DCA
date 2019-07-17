@@ -14,6 +14,8 @@
 #include <array>
 #include <map>
 #include <string>
+#include <vector>
+
 #include "gtest/gtest.h"
 
 #include "dca/function/util/difference.hpp"
@@ -44,7 +46,7 @@ TEST_F(TpAccumulatorTest, Accumulate) {
                                         TpAccumulatorTest::RDmn::dmn_size(), parameters_.get_beta(),
                                         n);
 
-  Data::ReducedTpGreensFunction G4_check("G4");
+  Data::TpGreensFunction G4_check("G4");
 
   dca::io::HDF5Writer writer;
   dca::io::HDF5Reader reader;
@@ -74,15 +76,15 @@ TEST_F(TpAccumulatorTest, Accumulate) {
     accumulator.accumulate(M, config, sign);
     accumulator.finalize();
 
-    const auto& G4 = accumulator.get_sign_times_G4();
+    const std::vector<Data::TpGreensFunction>& G4 = accumulator.get_sign_times_G4();
 
     if (update_baseline) {
-      writer.execute(func_names[type], G4);
+      writer.execute(func_names[type], G4[0]);
     }
     else {
       G4_check.set_name(func_names[type]);
       reader.execute(G4_check);
-      const auto diff = dca::func::util::difference(G4, G4_check);
+      const auto diff = dca::func::util::difference(G4[0], G4_check);
       EXPECT_GT(1e-8, diff.l_inf);
     }
   }
