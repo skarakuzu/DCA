@@ -878,11 +878,11 @@ inline double TpEqualTimeAccumulator<parameters_type, MOMS_type>::interpolate_ak
   // Find interpolation index of on the left of tau.
   const int t_ind = static_cast<int>(scaled_tau);
 
-#ifndef NDEBUG
-  const double* positive_times =
-      shifted_t::get_elements().data() + shifted_t::get_elements().size() / 2;
-  assert(positive_times[t_ind] <= tau && tau < positive_times[t_ind] + 1. / N_div_beta);
-#endif  // NDEBUG
+// #ifndef NDEBUG
+//   const double* positive_times =
+//       shifted_t::get_elements().data() + shifted_t::get_elements().size() / 2;
+//   assert(positive_times[t_ind] <= tau && tau < positive_times[t_ind] + 1. / N_div_beta);
+// #endif  // NDEBUG
 
   const double delta_tau = scaled_tau - t_ind;
   assert(delta_tau >= 0 && delta_tau < 1);
