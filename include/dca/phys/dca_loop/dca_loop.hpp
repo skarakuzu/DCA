@@ -198,6 +198,8 @@ void DcaLoop<ParametersType, DcaDataType, MCIntegratorType>::execute() {
 
     if (parameters.dump_at_each_iteration()) MOMS.Sigma = Sigma0;
 
+    MOMS.current_dca_iteration=i;
+
     perform_cluster_mapping();
 
     adjust_coarsegrained_self_energy();  // double-counting-correction

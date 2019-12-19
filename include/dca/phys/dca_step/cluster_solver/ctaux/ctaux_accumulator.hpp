@@ -43,6 +43,7 @@
 #ifdef DCA_HAVE_CUDA
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/sp/sp_accumulator_gpu.hpp"
 #include "dca/phys/dca_step/cluster_solver/shared_tools/accumulation/tp/tp_accumulator_gpu.hpp"
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/tp_equal_time_accumulator_gpu.hpp"
 #endif  // DCA_HAVE_CUDA
 
 namespace dca {
@@ -64,6 +65,7 @@ public:
 
   using t = func::dmn_0<domains::time_domain>;
   using w = func::dmn_0<domains::frequency_domain>;
+  using t_VERTEX = func::dmn_0<domains::vertex_time_domain<domains::TP_TIME_DOMAIN_POSITIVE>>;
   using w_VERTEX = func::dmn_0<domains::vertex_frequency_domain<domains::COMPACT>>;
 
   using b = func::dmn_0<domains::electron_band_domain>;
@@ -128,6 +130,15 @@ public:
   func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_dwave_pp_correlator() {
     return equal_time_accumulator_.get_dwave_pp_correlator();
   }
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_ZZ_chi() {
+    return equal_time_accumulator_.get_spin_ZZ_chi();
+  }
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_ZZ_chi_stddev() {
+    return equal_time_accumulator_.get_spin_ZZ_chi_stddev();
+  }
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_XX_chi() {
+    return equal_time_accumulator_.get_spin_XX_chi();
+  }
 
   // sp-measurements
   const auto& get_sign_times_M_r_w() const {
@@ -166,10 +177,9 @@ public:
 private:
   void accumulate_single_particle_quantities();
 
-  void accumulate_equal_time_quantities();
   using AccumType = typename Parameters::MC_measurement_scalar_type;
-  void accumulate_equal_time_quantities(const std::array<linalg::Matrix<AccumType, linalg::GPU>, 2>& M);
-  void accumulate_equal_time_quantities(const std::array<linalg::Matrix<AccumType, linalg::CPU>, 2>& M);
+  //void accumulate_equal_time_quantities(const std::array<linalg::Matrix<AccumType, linalg::GPU>, 2>& M);
+  void accumulate_equal_time_quantities();
 
   void accumulate_two_particle_quantities();
 
@@ -202,7 +212,8 @@ protected:
 
   accumulator::SpAccumulator<Parameters, device_t> single_particle_accumulator_obj;
 
-  ctaux::TpEqualTimeAccumulator<Parameters, Data> equal_time_accumulator_;
+  ctaux::TpEqualTimeAccumulator<Parameters, Data, device_t> equal_time_accumulator_;
+  //ctaux::TpEqualTimeAccumulator<Parameters, Data> equal_time_accumulator_;
 
   accumulator::TpAccumulator<Parameters, device_t> two_particle_accumulator_;
 
@@ -230,9 +241,15 @@ CtauxAccumulator<device_t, Parameters, Data>::CtauxAccumulator(Parameters& param
 
       single_particle_accumulator_obj(parameters_, compute_std_deviation_),
 
+
       equal_time_accumulator_(parameters_, data_, id),
 
-      two_particle_accumulator_(data_.G0_k_w_cluster_excluded, parameters_) {}
+      two_particle_accumulator_(data_.G0_k_w_cluster_excluded, parameters_) {
+
+
+//      std::cout<<"InCTAUXacc Constructor**********"<<std::endl;
+	
+  	}
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
 void CtauxAccumulator<device_t, Parameters, Data>::initialize(int dca_iteration) {
@@ -256,8 +273,9 @@ void CtauxAccumulator<device_t, Parameters, Data>::initialize(int dca_iteration)
   if (perform_tp_accumulation_)
     two_particle_accumulator_.resetAccumulation(dca_iteration);
 
-  if (parameters_.additional_time_measurements())
+  if (dca_iteration == parameters_.get_dca_iterations() - 1 && parameters_.additional_time_measurements()){
     equal_time_accumulator_.resetAccumulation();
+   }
 }
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
@@ -313,6 +331,10 @@ void CtauxAccumulator<device_t, Parameters, Data>::write(Writer& writer) {
     writer.execute(get_magnetic_cluster_moment());
     writer.execute(get_dwave_pp_correlator());
 
+    writer.execute(get_spin_ZZ_chi());
+    writer.execute(get_spin_ZZ_chi_stddev());
+    writer.execute(get_spin_XX_chi());
+
     writer.execute(get_G_r_t());
     writer.execute(get_G_r_t_stddev());
   }
@@ -341,6 +363,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::updateFrom(walker_type& walke
 
   single_particle_accumulator_obj.synchronizeCopy();
   two_particle_accumulator_.synchronizeCopy();
+  equal_time_accumulator_.synchronizeCopy();
 
   configuration_type& full_configuration = walker.get_configuration();
   hs_configuration_[0] = full_configuration.get(e_UP);
@@ -357,6 +380,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::updateFrom(walker_type& walke
 
   single_particle_accumulator_obj.syncStreams(*event);
   two_particle_accumulator_.syncStreams(*event);
+  equal_time_accumulator_.syncStreams(*event);
 }
 
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
@@ -428,28 +452,11 @@ void CtauxAccumulator<device_t, Parameters, Data>::accumulate_single_particle_qu
  **                                                         **
  *************************************************************/
 
+
+
 template <dca::linalg::DeviceType device_t, class Parameters, class Data>
 void CtauxAccumulator<device_t, Parameters, Data>::accumulate_equal_time_quantities() {
-  profiler_type profiler("equal-time-measurements", "CT-AUX accumulator", __LINE__, thread_id);
-
-  return accumulate_equal_time_quantities(M_);
-}
-
-template <dca::linalg::DeviceType device_t, class Parameters, class Data>
-void CtauxAccumulator<device_t, Parameters, Data>::accumulate_equal_time_quantities(
-    const std::array<linalg::Matrix<AccumType, linalg::GPU>, 2>& M) {
-  for (int s = 0; s < 2; ++s)
-    M_host_[s].setAsync(M[s], thread_id, s);
-  for (int s = 0; s < 2; ++s)
-    linalg::util::syncStream(thread_id, s);
-
-  return accumulate_equal_time_quantities(M_host_);
-}
-
-template <dca::linalg::DeviceType device_t, class Parameters, class Data>
-void CtauxAccumulator<device_t, Parameters, Data>::accumulate_equal_time_quantities(
-    const std::array<linalg::Matrix<AccumType, linalg::CPU>, 2>& M) {
-  equal_time_accumulator_.accumulateAll(hs_configuration_[0], M[0], hs_configuration_[1], M[1],
+  equal_time_accumulator_.accumulateAll(hs_configuration_[0], M_[0], hs_configuration_[1], M_[1],
                                         current_sign);
 
   GFLOP += equal_time_accumulator_.get_GFLOP();

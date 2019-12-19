@@ -276,6 +276,7 @@ template <class Parameters>
 void TpAccumulator<Parameters, linalg::GPU>::initializeG4Helpers() const {
   static std::once_flag flag;
   std::call_once(flag, []() {
+    std::cout<<"copying data to GPU in TPACC************"<<std::endl;
     const auto& add_mat = KDmn::parameter_type::get_add_matrix();
     const auto& sub_mat = KDmn::parameter_type::get_subtract_matrix();
     const int k0 = KDmn::parameter_type::origin_index();

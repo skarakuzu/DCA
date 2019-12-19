@@ -1,0 +1,70 @@
+// Copyright (C) 2018 ETH Zurich
+// Copyright (C) 2018 UT-Battelle, LLC
+// All rights reserved.
+//
+// See LICENSE.txt for terms of usage.
+// See CITATION.txt for citation guidelines if you use this code for scientific publications.
+//
+// Author: Giovanni Balduzzi (gbalduzz@itp.phys.ethz.ch)
+//
+// This file implements G4Helper::set.
+
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/TpEqTime_helper.cuh"
+
+#include <algorithm>
+#include <array>
+#include <mutex>
+#include <stdexcept>
+
+namespace dca {
+namespace phys {
+namespace solver {
+namespace ctaux {
+// dca::phys::solver::ctaux::
+
+__device__ __constant__ TpEqTimeHelper tpeqtime_helper;
+
+void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm,  double beta, double N_div_beta) {
+
+
+  static std::once_flag flag;
+
+  std::call_once(flag, [=]() {
+    TpEqTimeHelper host_helper;
+    host_helper.lds_ = lds;
+    host_helper.N_div_beta_ = N_div_beta;
+    host_helper.beta_ = beta;
+
+/*
+    host_helper.ext_size_ = 0;
+    for (const int idx : delta_w)
+      host_helper.ext_size_ = std::max(host_helper.ext_size_, std::abs(idx));
+*/
+
+    const std::array<int, 7> akima_sizes{lakm,
+				    nb_akm,
+                                    ns_akm,
+                                    nb_akm,
+                                    ns_akm,
+                                    nr_akm,
+                                    nt_akm};
+
+    std::array<int, 7> steps;
+    steps[0] = 4;
+    steps[1] = 1;
+    for (std::size_t i = 2; i < steps.size(); ++i)
+      steps[i] = steps[i - 1] * akima_sizes[i - 1];
+
+    std::copy_n(steps.data(), steps.size(), host_helper.akima_steps_);
+
+    cudaMalloc(&host_helper.sub_matrix_, sizeof(int) * lds * nr_sub);
+    cudaMemcpy(host_helper.sub_matrix_, sub_r, sizeof(int) * lds * nr_sub, cudaMemcpyHostToDevice);
+
+    cudaMemcpyToSymbol(tpeqtime_helper, &host_helper, sizeof(TpEqTimeHelper));
+  });
+}
+
+}  // namespace ctaux
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca

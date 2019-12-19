@@ -1,0 +1,937 @@
+// Copyright (C) 2018 ETH Zurich
+// Copyright (C) 2018 UT-Battelle, LLC
+// All rights reserved.
+//
+// See LICENSE for terms of usage.
+// See CITATION.md for citation guidelines, if DCA++ is used for scientific publications.
+//
+// Author: Peter Staar (taa@zurich.ibm.com)
+//         Giovanni Balduzzi (gbalduzz@itp.phys.ethz.ch)
+//
+// This class measures the equal time operator functions.
+
+#ifndef DCA_HAVE_CUDA
+#error "This file requires CUDA."
+#endif
+
+#ifndef DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_ACCUMULATOR_TP_TP_EQUAL_TIME_ACCUMULATOR_GPU_HPP
+#define DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_ACCUMULATOR_TP_TP_EQUAL_TIME_ACCUMULATOR_GPU_HPP
+
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/tp_equal_time_accumulator.hpp"
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/singleton_obj_dev.hpp"
+
+#include <cuda.h>
+#include <mutex>
+
+#include <cassert>
+#include <cmath>
+#include <iostream>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+#include "dca/linalg/lapack/magma.hpp"
+#include "dca/linalg/util/magma_queue.hpp"
+
+#include "dca/linalg/matrix.hpp"
+#include "dca/linalg/util/allocators/vectors_typedefs.hpp"
+#include "dca/linalg/util/cuda_event.hpp"
+#include "dca/linalg/vector.hpp"
+
+#include "dca/function/domains.hpp"
+#include "dca/function/function.hpp"
+#include "dca/math/function_transform/function_transform.hpp"
+#include "dca/math/interpolation/akima_interpolation.hpp"
+#include "dca/phys/dca_step/cluster_solver/ctaux/structs/vertex_singleton.hpp"
+#include "dca/phys/domains/cluster/cluster_domain.hpp"
+#include "dca/phys/domains/cluster/cluster_domain_aliases.hpp"
+#include "dca/phys/domains/quantum/electron_band_domain.hpp"
+#include "dca/phys/domains/quantum/electron_spin_domain.hpp"
+#include "dca/phys/domains/time_and_frequency/time_domain.hpp"
+#include "dca/phys/domains/time_and_frequency/time_domain_left_oriented.hpp"
+#include "dca/phys/domains/time_and_frequency/vertex_time_domain.hpp"
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/kernels_interface_for_eqtime.hpp"
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/TpEqTime_helper.cuh"
+#include "dca/util/plot.hpp"
+
+namespace dca {
+namespace phys {
+namespace solver {
+namespace ctaux {
+// dca::phys::solver::ctaux::
+
+template <class parameters_type, class MOMS_type>
+class TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU> : public TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU> {
+private:
+  using this_type = TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>;
+  using BaseClass = TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>;
+
+
+public:
+  typedef double scalar_type;
+  typedef vertex_singleton vertex_singleton_type;
+
+  typedef typename parameters_type::profiler_type profiler_type;
+
+  using t =  typename BaseClass::t;
+  using t_VERTEX = typename BaseClass::t_VERTEX;
+
+  using b = typename BaseClass::b;
+  using s = typename BaseClass::s;
+  using nu = typename BaseClass::nu;  // orbital-spin index
+
+  using cCDA = typename BaseClass::CDA;
+  using RClusterDmn = typename BaseClass::RClusterDmn;
+  using KClusterDmn = typename BaseClass::KClusterDmn;
+  using r_dmn_t = typename BaseClass::r_dmn_t;
+  using k_dmn_t = typename BaseClass::k_dmn_t;
+
+  using b_r_t_VERTEX_dmn_t = typename BaseClass::b_r_t_VERTEX_dmn_t;
+
+  using shifted_t = typename BaseClass::shifted_t;
+  using nu_nu_r_dmn_t_shifted_t = typename BaseClass::nu_nu_r_dmn_t_shifted_t;
+
+  using akima_dmn_t = typename BaseClass::akima_dmn_t;
+  using akima_nu_nu_r_dmn_t_shifted_t = typename BaseClass::akima_nu_nu_r_dmn_t_shifted_t;
+
+public:
+  TpEqualTimeAccumulator(parameters_type& parameters_ref, MOMS_type& MOMS_ref, int id);
+
+  void resetAccumulation();
+
+  void finalize();
+
+  void sumTo(TpEqualTimeAccumulator<parameters_type, MOMS_type,linalg::GPU>& other);
+
+  
+  auto get_stream() const {
+    return streams_[0];
+  }
+
+  void synchronizeCopy() {
+  event_.block(streams_[0]);
+  event_.block(streams_[1]);
+  }
+
+  void syncStreams(const linalg::util::CudaEvent& event) {
+    for (const auto& stream : streams_)
+      event.block(stream);
+  }
+
+  void synchronizeStreams();
+
+  template <class configuration_type, typename RealInp>
+  void compute_G_r_t(const configuration_type& configuration_e_up,
+                     const dca::linalg::Matrix<RealInp, dca::linalg::GPU>& M_up,
+                     const configuration_type& configuration_e_dn,
+                     const dca::linalg::Matrix<RealInp, dca::linalg::GPU>& M_dn);
+
+  void accumulate_G_r_t(double sign);
+  void accumulate_G_r_t_orig(double sign);
+
+  void accumulate_moments(double sign);
+
+  void accumulate_dwave_pp_correlator(double sign);
+
+  // Accumulate all relevant quantities. This is equivalent to calling compute_G_r_t followed by all
+  // the accumulation methods.
+  template <class configuration_type, typename RealInp>
+  void accumulateAll(const configuration_type& configuration_e_up,
+                     const dca::linalg::Matrix<RealInp, dca::linalg::GPU>& M_up,
+                     const configuration_type& configuration_e_dn,
+                     const dca::linalg::Matrix<RealInp, dca::linalg::GPU>& M_dn, int sign);
+
+  template <class configuration_type, typename RealInp>
+  void accumulateAll(const configuration_type& configuration_e_up,
+                     const dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_up,
+                     const configuration_type& configuration_e_dn,
+                     const dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_dn, int sign);
+
+  double get_GFLOP();
+
+
+  func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t() {
+    return G_r_t;
+  }
+
+private:
+
+  void initialize_my_configuration_ondevice();
+  void initialize_TpEqTime_helper() ;
+
+  int find_first_non_interacting_spin(const std::vector<vertex_singleton_type>& configuration_e_spin);
+
+  template <class configuration_type>
+  void compute_G0_matrix(e_spin_states e_spin, const configuration_type& configuration,
+                         dca::linalg::Matrix<float, dca::linalg::GPU>& G0_matrix);
+
+  template <class configuration_type>
+  void compute_G0_matrix_left(e_spin_states e_spin, const configuration_type& configuration,
+                              dca::linalg::Matrix<float, dca::linalg::GPU>& G0_matrix);
+
+  template <class configuration_type>
+  void compute_G0_matrix_right(e_spin_states e_spin, const configuration_type& configuration,
+                               dca::linalg::Matrix<float, dca::linalg::GPU>& G0_matrix);
+
+  double interpolate_akima(int b_i, int s_i, int b_j, int s_j, int delta_r, double tau);
+
+ 
+  void interpolate(func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& G_r_t,
+                   func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& G_r_t_stddev);
+
+private:
+
+  double beta_;
+  double sp_time_intervals_;
+
+  double GFLOP;
+ 
+  constexpr static int n_bands_ = parameters_type::model_type::BANDS;
+ 
+  std::array<linalg::util::MagmaQueue, 2> queues_;
+  std::array<int, 2> streams_id_;
+  std::array<cudaStream_t, 2> streams_;
+  linalg::util::CudaEvent event_;
+
+  using BaseClass::thread_id;
+  using BaseClass::b_r_t_dmn;
+  using BaseClass::nu_nu_r_dmn_t_t_shifted_dmn;
+  using BaseClass::akima_coefficients;
+
+  using BaseClass::fixed_configuration;
+
+  using BaseClass::G0_sign_up;
+  using BaseClass::G0_sign_dn;
+
+  using BaseClass::G0_indices_up;
+  using BaseClass::G0_indices_dn;
+
+  using BaseClass::G0_integration_factor_up;
+  using BaseClass::G0_integration_factor_dn;
+
+  using BaseClass::G0_original_up;
+  using BaseClass::G0_original_dn;
+
+  using BaseClass::M_matrix_up;
+  using BaseClass::M_matrix_dn;
+
+  using BaseClass::G0_matrix_up;
+  using BaseClass::G0_matrix_dn;
+
+  using BaseClass::G0_matrix_up_left;
+  using BaseClass::G0_matrix_dn_left;
+
+  using BaseClass::G0_matrix_up_right;
+  using BaseClass::G0_matrix_dn_right;
+
+  using BaseClass::M_G0_matrix_up;
+  using BaseClass::M_G0_matrix_dn;
+
+  using BaseClass::G0_M_G0_matrix_up;
+  using BaseClass::G0_M_G0_matrix_dn;
+
+  using BaseClass::G_r_t_dn;
+  using BaseClass::G_r_t_up;
+
+  using BaseClass::G_r_t;
+  using BaseClass::G_r_t_stddev;
+
+  using BaseClass::G_r_t_accumulated;
+  using BaseClass::G_r_t_accumulated_squared;
+
+  using BaseClass::charge_cluster_moment;
+  using BaseClass::magnetic_cluster_moment;
+
+  using BaseClass::dwave_k_factor;
+  using BaseClass::dwave_r_factor;
+
+  using BaseClass::dwave_pp_correlator;
+
+  using MatrixHost_dble = dca::linalg::Matrix<double, dca::linalg::CPU>;
+  using MatrixDev_dble = dca::linalg::Matrix<double, dca::linalg::GPU>;
+  using MatrixHost_flt = dca::linalg::Matrix<float, dca::linalg::CPU>;
+  using MatrixDev_flt = dca::linalg::Matrix<float, dca::linalg::GPU>;
+  using MatrixHost_int = dca::linalg::Matrix<int, dca::linalg::CPU>;
+  using MatrixDev_int = dca::linalg::Matrix<int, dca::linalg::GPU>;
+  using VectorHost_dble = dca::linalg::Vector<double, dca::linalg::CPU>;
+  using VectorDev_dble = dca::linalg::Vector<double, dca::linalg::GPU>;
+  using VectorHost_int = dca::linalg::Vector<int, dca::linalg::CPU>;
+  //using VectorHost_dble = dca::linalg::util::HostVector<double>;
+
+  dca::linalg::Matrix<float, dca::linalg::GPU> G0_matrix_up_left_dev;
+  dca::linalg::Matrix<float, dca::linalg::GPU> G0_matrix_dn_left_dev;
+
+  dca::linalg::Matrix<float, dca::linalg::GPU> G0_matrix_up_right_dev;
+  dca::linalg::Matrix<float, dca::linalg::GPU> G0_matrix_dn_right_dev;
+
+  dca::linalg::Matrix<float, dca::linalg::GPU> M_matrix_up_dev;
+  dca::linalg::Matrix<float, dca::linalg::GPU> M_matrix_dn_dev;
+
+  dca::linalg::Matrix<float, dca::linalg::GPU> M_G0_matrix_up_dev;
+  dca::linalg::Matrix<float, dca::linalg::GPU> M_G0_matrix_dn_dev;
+  
+  dca::linalg::Matrix<float, dca::linalg::GPU> G0_M_G0_matrix_up_dev;
+  dca::linalg::Matrix<float, dca::linalg::GPU> G0_M_G0_matrix_dn_dev;
+
+  dca::linalg::Matrix<float, dca::linalg::GPU> G_r_t_up_dev;
+  dca::linalg::Matrix<float, dca::linalg::GPU> G_r_t_dn_dev;
+ 
+  dca::linalg::Vector<double, dca::linalg::GPU> G_r_t_accumulated_dev;
+  dca::linalg::Vector<double, dca::linalg::GPU> G_r_t_accumulated_squared_dev;
+ 
+
+  dca::linalg::Matrix<float, dca::linalg::CPU> G_r_t_up_test_host;
+
+//  dca::linalg::Matrix<double, dca::linalg::CPU> akima_coefficients_host ;  ///Host akima Matrix
+//  dca::linalg::Matrix<double, dca::linalg::GPU> akima_coefficients_dev ;   ///Device akima Matrix
+
+//  dca::linalg::Matrix<float, dca::linalg::CPU> G0_sign_up_host ;  ///Host akima Matrix
+//  dca::linalg::Matrix<float, dca::linalg::GPU> G0_sign_up_dev ;   ///Device akima Matrix
+
+//  dca::linalg::Matrix<float, dca::linalg::CPU> G0_sign_dn_host ;  ///Host akima Matrix
+//  dca::linalg::Matrix<float, dca::linalg::GPU> G0_sign_dn_dev ;   ///Device akima Matrix
+
+
+  dca::linalg::util::HostVector<ConfigElemTpEqTime> config_up_;
+  dca::linalg::util::HostVector<ConfigElemTpEqTime> config_dn_;
+  dca::linalg::util::HostVector<singleton_operator_dev> fixed_config_;
+
+  dca::linalg::Vector<ConfigElemTpEqTime, linalg::GPU> config_up_dev_;
+  dca::linalg::Vector<ConfigElemTpEqTime, linalg::GPU> config_dn_dev_;
+  dca::linalg::Vector<singleton_operator_dev, linalg::GPU> fixed_config_dev;
+  
+	 VectorHost_dble akima_coefficients_host;
+	 //static MatrixHost_flt G0_sign_up_host;
+	 MatrixHost_flt G0_sign_up_host;
+	 //static MatrixHost_flt G0_sign_dn_host;
+	 MatrixHost_flt G0_sign_dn_host;
+
+	 //static MatrixHost_int G0_indices_up_host;
+	 MatrixHost_int G0_indices_up_host;
+	 //static MatrixHost_int G0_indices_dn_host;
+	 MatrixHost_int G0_indices_dn_host;
+  	
+	 //static MatrixHost_flt G0_integration_factor_up_host;
+	 MatrixHost_flt G0_integration_factor_up_host;
+	 //static MatrixHost_flt G0_integration_factor_dn_host;
+	 MatrixHost_flt G0_integration_factor_dn_host;
+
+};
+
+template <class parameters_type, class MOMS_type>
+TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::TpEqualTimeAccumulator(
+    parameters_type& parameters_ref, MOMS_type& MOMS_ref, int id)
+    : BaseClass(parameters_ref, MOMS_ref, id),
+
+      beta_(parameters_ref.get_beta()),
+
+      sp_time_intervals_(parameters_ref.get_sp_time_intervals()),
+
+      GFLOP(0),
+
+      queues_(),      
+      
+      streams_id_{0,1},
+
+      streams_{queues_[0].getStream(), queues_[1].getStream()} {
+
+  for (int k_ind = 0; k_ind < k_dmn_t::dmn_size(); k_ind++)
+    dwave_k_factor(k_ind) =
+        cos(k_dmn_t::get_elements()[k_ind][0]) - cos(k_dmn_t::get_elements()[k_ind][1]);
+
+  math::transform::FunctionTransform<k_dmn_t, r_dmn_t>::execute(dwave_k_factor, dwave_r_factor);
+
+  //BaseClass::initialize_akima_coefficients();
+
+  synchronizeStreams();
+
+  G_r_t_up_test_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+
+  G_r_t_up_dev.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+  G_r_t_dn_dev.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+  G_r_t_accumulated_dev.resizeNoCopy(nu::dmn_size()*nu::dmn_size()*r_dmn_t::dmn_size()*t_VERTEX::dmn_size());
+  G_r_t_accumulated_squared_dev.resizeNoCopy(nu::dmn_size()*nu::dmn_size()*r_dmn_t::dmn_size()*t_VERTEX::dmn_size());
+
+
+
+  std::cout<<"In Child Equal-time Accumulator*****************: "<<id<<std::endl;
+
+
+  initialize_my_configuration_ondevice();
+  initialize_TpEqTime_helper();
+
+}
+
+template <class parameters_type, class MOMS_type>
+double TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::get_GFLOP() {
+  double tmp = GFLOP;
+  GFLOP = 0;
+  return tmp;
+}
+
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize_my_configuration_ondevice()  {
+
+  fixed_config_.resize(b::dmn_size() * r_dmn_t::dmn_size() * t_VERTEX::dmn_size());
+  int index = 0;
+  for (int b_ind = 0; b_ind < b::dmn_size(); b_ind++) {
+    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++) {
+      for (int t_ind = 0; t_ind < t_VERTEX::dmn_size(); t_ind++) {
+        
+	fixed_config_[index].b_ind = fixed_configuration[index].b_ind;
+	fixed_config_[index].r_ind = fixed_configuration[index].r_ind;
+	fixed_config_[index].t_ind = fixed_configuration[index].t_ind;
+	fixed_config_[index].t_val = fixed_configuration[index].t_val;
+
+        index += 1;
+      }
+    }
+  }
+
+
+    fixed_config_dev.setAsync(fixed_config_, streams_[0]);
+
+
+}
+
+
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize_TpEqTime_helper()  {
+
+        
+         G0_M_G0_matrix_dn_dev.resizeNoCopy(
+      				std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+         G0_M_G0_matrix_up_dev.resizeNoCopy(
+      				std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+
+
+  
+
+
+
+	 //static MatrixHost_dble akima_coefficients_host;
+	 //MatrixHost_dble akima_coefficients_host;
+
+         akima_nu_nu_r_dmn_t_shifted_t  akm_nunur_dmn_shifted_t;
+         akima_coefficients_host.resizeNoCopy(4*nu_nu_r_dmn_t_t_shifted_dmn.get_size());
+
+
+//  std::cout<<"printing akima in child***************"<<std::endl;
+//  for (int i=0; i<4*nu_nu_r_dmn_t_t_shifted_dmn.get_size(); i++) std::cout<<i<<" "<<BaseClass::akima_coefficients(i)<<std::endl;
+
+       int index=0;
+     ///COPY AKIMA TO HOST MATRIX
+                                for (int t_ind = 0; t_ind < shifted_t::dmn_size(); t_ind++){
+	    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++) {
+                for (int s1_ind = 0; s1_ind < s::dmn_size(); s1_ind++) {
+                    for (int b1_ind = 0; b1_ind < b::dmn_size(); b1_ind++) {
+        	        for (int s0_ind = 0; s0_ind < s::dmn_size(); s0_ind++) {
+        	            for (int b0_ind = 0; b0_ind < b::dmn_size(); b0_ind++) {
+        for (int l = 0; l < 4; l++){
+			
+//			    akima_coefficients_host[akm_nunur_dmn_shifted_t(l, b0_ind, s0_ind, b1_ind, s1_ind,  r_ind, t_ind)] = akima_coefficients(l, b0_ind, s0_ind, b1_ind, s1_ind, r_ind, t_ind);
+			    //akima_coefficients_host[akm_nunur_dmn_shifted_t(l, b0_ind, s0_ind, b1_ind, s1_ind,  r_ind, t_ind)] = akima_coefficients(index);
+			    //akima_coefficients_host[index] = akima_coefficients(index);
+			    //akima_coefficients_host[nu_nu_r_dmn_t_t_shifted_dmn(b0_ind, s0_ind, b1_ind, s1_ind, r_ind, t_ind) + l] = akima_coefficients( nu_nu_r_dmn_t_t_shifted_dmn(b0_ind, s0_ind, b1_ind, s1_ind, r_ind, t_ind) + l);
+			    //akima_coefficients_host[index] = akima_coefficients(akm_nunur_dmn_shifted_t(l, b0_ind, s0_ind, b1_ind, s1_ind,  r_ind, t_ind));
+			    akima_coefficients_host[index] = akima_coefficients(index);
+		            //std::cout<<4*nu_nu_r_dmn_t_t_shifted_dmn.get_size()<<" "<<akm_nunur_dmn_shifted_t(l, b0_ind, s0_ind, b1_ind, s1_ind,  r_ind, t_ind)<<" "<<index<<" "<<akima_coefficients(index)<<" "<<akima_coefficients(akm_nunur_dmn_shifted_t(l, b0_ind, s0_ind, b1_ind, s1_ind,  r_ind, t_ind))<<std::endl;
+							index +=1;
+							}
+				    		}
+           	    			}
+          	 		}
+       	    		}
+	 	}
+	}
+
+         G0_sign_up_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+         G0_sign_dn_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+         
+         G0_indices_up_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+         G0_indices_dn_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+         
+         G0_integration_factor_up_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+         G0_integration_factor_dn_host.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+
+
+     /// COPY G0_SIGN, G0_INDICES, G0_INTEGRATION_FACTOR MATRICES TO HOST
+	for (int j = 0; j < b_r_t_VERTEX_dmn_t::dmn_size(); j++) {
+	    for (int i = 0; i < b_r_t_VERTEX_dmn_t::dmn_size(); i++) {
+
+		 G0_sign_up_host(i,j) = G0_sign_up(i,j);
+		 G0_sign_dn_host(i,j) = G0_sign_dn(i,j);
+	 
+	         G0_indices_up_host(i,j) = G0_indices_up(i,j);
+		 G0_indices_dn_host(i,j) = G0_indices_dn(i,j);
+
+	 	 G0_integration_factor_up_host(i,j) = G0_integration_factor_up(i,j);
+ 		 G0_integration_factor_dn_host(i,j) = G0_integration_factor_dn(i,j);
+		 
+	}
+    }
+
+
+static std::once_flag flag;
+  std::call_once(flag, [&]() {
+
+
+    const auto& sub_mat_r = RClusterDmn::parameter_type::get_subtract_matrix();
+    const static double beta = beta_;
+    const static double N_div_beta = sp_time_intervals_/ beta;
+
+    TpEqTimeHelper::set( sub_mat_r.ptr(),sub_mat_r.leadingDimension(), RClusterDmn::dmn_size(),
+ 			akima_dmn_t::dmn_size(), b::dmn_size(), s::dmn_size(), r_dmn_t::dmn_size(), shifted_t::dmn_size(),
+  			beta, N_div_beta);
+    assert(cudaPeekAtLastError() == cudaSuccess);
+
+
+   }); //end of call_once
+
+}
+
+
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::resetAccumulation() {
+  GFLOP = 0;
+
+  G_r_t_accumulated_dev.setToZeroAsync(streams_[0]);
+  G_r_t_accumulated_squared_dev.setToZeroAsync(streams_[0]);
+
+  G_r_t = 0;
+  G_r_t_stddev = 0;
+
+  G_r_t_accumulated = 0;
+  G_r_t_accumulated_squared = 0;
+
+  charge_cluster_moment = 0;
+  magnetic_cluster_moment = 0;
+
+  dwave_pp_correlator = 0;
+
+  synchronizeStreams();
+
+ 
+}
+
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::interpolate(
+    func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& G_r_t,
+    func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& G_r_t_stddev) {
+  int size = t_VERTEX::dmn_size();
+
+  math::interpolation::akima_interpolation<double> ai_obj(size);
+
+  double* x = new double[size];
+  double* y = new double[size];
+
+  for (int t_ind = 0; t_ind < t_VERTEX::dmn_size(); t_ind++)
+    x[t_ind] = t_VERTEX::get_elements()[t_ind];
+
+  {
+    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++) {
+      for (int nu1_ind = 0; nu1_ind < nu::dmn_size(); nu1_ind++) {
+        for (int nu0_ind = 0; nu0_ind < nu::dmn_size(); nu0_ind++) {
+          {
+            for (int t_ind = 0; t_ind < t_VERTEX::dmn_size(); t_ind++)
+              y[t_ind] = G_r_t_accumulated(nu0_ind, nu1_ind, r_ind, t_ind);
+
+            ai_obj.initialize(x, y);
+
+            for (int t_ind = t::dmn_size() / 2; t_ind < t::dmn_size(); t_ind++)
+              G_r_t(nu0_ind, nu1_ind, r_ind, t_ind) = ai_obj.evaluate(t::get_elements()[t_ind]);
+          }
+
+          {
+            for (int t_ind = 0; t_ind < t_VERTEX::dmn_size(); t_ind++)
+              y[t_ind] = G_r_t_accumulated_squared(nu0_ind, nu1_ind, r_ind, t_ind);
+
+            ai_obj.initialize(x, y);
+
+            for (int t_ind = t::dmn_size() / 2; t_ind < t::dmn_size(); t_ind++)
+              G_r_t_stddev(nu0_ind, nu1_ind, r_ind, t_ind) =
+                  ai_obj.evaluate(t::get_elements()[t_ind]);
+          }
+        }
+      }
+    }
+    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++)
+      for (int nu1_ind = 0; nu1_ind < nu::dmn_size(); nu1_ind++)
+        for (int nu0_ind = 0; nu0_ind < nu::dmn_size(); nu0_ind++)
+          for (int t_ind = 0; t_ind < t::dmn_size() / 2; t_ind++)
+            G_r_t(nu0_ind, nu1_ind, r_ind, t_ind) =
+                -G_r_t(nu0_ind, nu1_ind, r_ind, t_ind + t::dmn_size() / 2);
+
+    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++)
+      for (int nu1_ind = 0; nu1_ind < nu::dmn_size(); nu1_ind++)
+        for (int nu0_ind = 0; nu0_ind < nu::dmn_size(); nu0_ind++)
+          for (int t_ind = 0; t_ind < t::dmn_size() / 2; t_ind++)
+            G_r_t_stddev(nu0_ind, nu1_ind, r_ind, t_ind) =
+                G_r_t_stddev(nu0_ind, nu1_ind, r_ind, t_ind + t::dmn_size() / 2);
+  }
+
+  delete[] x;
+  delete[] y;
+}
+
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::finalize() {
+  // util::Plot::plotLinesPoints(G_r_t_accumulated);
+
+  synchronizeStreams();
+
+//  cudaMemcpy(G_r_t_accumulated.values(), G_r_t_accumulated_dev.ptr(), G_r_t_accumulated.size()* sizeof(double), 
+ //            cudaMemcpyDeviceToHost);
+
+
+  cudaMemcpy2DAsync(G_r_t_up.values(), G_r_t_up_test_host.nrRows()* sizeof(float), G_r_t_up_dev.ptr(),
+                      G_r_t_up_dev.leadingDimension() * sizeof(float),
+                      G_r_t_up_dev.nrRows() * sizeof(float), G_r_t_up_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+  
+  cudaMemcpy2DAsync(G_r_t_dn.values(), G_r_t_up_test_host.nrRows()* sizeof(float), G_r_t_dn_dev.ptr(),
+                      G_r_t_dn_dev.leadingDimension() * sizeof(float),
+                      G_r_t_dn_dev.nrRows() * sizeof(float), G_r_t_dn_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[0]);
+  assert(cudaPeekAtLastError() == cudaSuccess);
+
+    cudaMemcpy2DAsync(G_r_t_up_test_host.ptr(), G_r_t_up_test_host.nrRows()* sizeof(float), G_r_t_up_dev.ptr(),
+                      G_r_t_up_dev.leadingDimension() * sizeof(float),
+                      G_r_t_up_dev.nrRows() * sizeof(float), G_r_t_up_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+
+
+  synchronizeStreams();
+   	std::cout<<"G_r_t_up_dev: "<<G0_M_G0_matrix_up.size().first-1<<" "<<G0_M_G0_matrix_up.size().second-1<<" "<<G_r_t_up(0,0)<<" "<<G_r_t_up(0,1)<<" "<<G_r_t_up(1,2)<<" "<<G_r_t_up(G0_M_G0_matrix_up.size().first-1,G0_M_G0_matrix_up.size().second-1)<<std::endl;
+   	std::cout<<"G_r_t_dn_dev: "<<G0_M_G0_matrix_dn.size().first-1<<" "<<G0_M_G0_matrix_dn.size().second-1<<" "<<G_r_t_dn(0,0)<<" "<<G_r_t_dn(0,1)<<" "<<G_r_t_dn(1,2)<<" "<<G_r_t_up(G0_M_G0_matrix_dn.size().first-1,G0_M_G0_matrix_dn.size().second-1)<<std::endl;
+  std::cout<<"G_r_t_acc_dev: "<<G_r_t_accumulated.size()<<" "<<G_r_t_accumulated(0)<<" "<<G_r_t_accumulated(1)<<" "<<G_r_t_accumulated(2)<<" "<<G_r_t_accumulated(3)<<" "<<G_r_t_accumulated(4)<<" "<<G_r_t_accumulated(5)<<" "<<G_r_t_accumulated(6)<<" "<<G_r_t_accumulated(7)<<" "<<G_r_t_accumulated(8)<<" "<<G_r_t_accumulated(9)<<std::endl;
+
+
+  for (int l = 0; l < G_r_t_accumulated_squared.size(); l++)
+    G_r_t_accumulated_squared(l) =
+        std::sqrt(std::abs(G_r_t_accumulated_squared(l) - std::pow(G_r_t_accumulated(l), 2)));
+
+   interpolate(G_r_t, G_r_t_stddev);
+
+  // util::Plot::plotLinesPoints(G_r_t);
+}
+
+
+template <class parameters_type, class MOMS_type>
+template <class configuration_type, typename RealInp>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::compute_G_r_t(
+    const configuration_type& configuration_e_up,
+    const dca::linalg::Matrix<RealInp, linalg::GPU>& M_up,
+    const configuration_type& configuration_e_dn,
+    const dca::linalg::Matrix<RealInp, linalg::GPU>& M_dn) {
+
+
+  int config_size_up = find_first_non_interacting_spin(configuration_e_up);
+  int config_size_dn = find_first_non_interacting_spin(configuration_e_dn);
+  config_up_.resize(config_size_up);
+  config_dn_.resize(config_size_dn);
+
+  for (int i = 0; i < config_size_up; ++i) {
+  	config_up_[i].band = configuration_e_up[i].get_band();
+  	config_up_[i].rsite = configuration_e_up[i].get_r_site();
+  	config_up_[i].tau = configuration_e_up[i].get_tau();
+  }
+
+  for (int i = 0; i < config_size_dn; ++i) {
+  	config_dn_[i].band = configuration_e_dn[i].get_band();
+  	config_dn_[i].rsite = configuration_e_dn[i].get_r_site();
+  	config_dn_[i].tau = configuration_e_dn[i].get_tau();
+  }
+
+
+  config_up_dev_.setAsync(config_up_, streams_[1]);
+  config_dn_dev_.setAsync(config_dn_, streams_[0]);
+  
+
+  int spin_index_up = 1;
+  int spin_index_dn = 0;
+
+  M_matrix_dn_dev.resizeNoCopy(std::pair<int, int>(config_size_dn, config_size_dn));
+  G0_matrix_dn_left_dev.resizeNoCopy(
+        std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), config_size_dn));
+  G0_matrix_dn_right_dev.resizeNoCopy(
+        std::pair<int, int>(config_size_dn, b_r_t_VERTEX_dmn_t::dmn_size()));
+
+  M_G0_matrix_dn_dev.resizeNoCopy(
+        std::pair<int, int>(config_size_dn, b_r_t_VERTEX_dmn_t::dmn_size()));
+
+
+  M_matrix_up_dev.resizeNoCopy(std::pair<int, int>(config_size_up, config_size_up));
+
+  G0_matrix_up_left_dev.resizeNoCopy(
+        std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), config_size_up));
+  G0_matrix_up_right_dev.resizeNoCopy(
+        std::pair<int, int>(config_size_up, b_r_t_VERTEX_dmn_t::dmn_size()));
+
+  M_G0_matrix_up_dev.resizeNoCopy(
+        std::pair<int, int>(config_size_up, b_r_t_VERTEX_dmn_t::dmn_size()));
+
+    G0_matrix_up_left.resizeNoCopy(
+        std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), config_size_up));
+    G0_matrix_dn_left.resizeNoCopy(
+        std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), config_size_dn));
+    G0_M_G0_matrix_up.resizeNoCopy(
+      				std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+    G0_M_G0_matrix_dn.resizeNoCopy(
+      				std::pair<int, int>(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
+  
+    M_G0_matrix_up.resizeNoCopy(
+        std::pair<int, int>(config_size_up, b_r_t_VERTEX_dmn_t::dmn_size()));
+    M_G0_matrix_dn.resizeNoCopy(
+        std::pair<int, int>(config_size_up, b_r_t_VERTEX_dmn_t::dmn_size()));
+//  int configuration_size_orig_up = configuration_e_up.size();
+//  int configuration_size_orig_dn = configuration_e_dn.size();
+  //std::cout<<"printing up..."<<M_up.nrCols()<<" "<<M_up.nrRows()<<" "<<M_up.leadingDimension()<<" "<<M_matrix_up_dev.leadingDimension()<<" "<<config_size_up<<" "<<configuration_size_orig_up<<std::endl;
+  //std::cout<<"printing ldm..."<<G_r_t_up_dev.leadingDimension()<<" "<<G0_M_G0_matrix_up_dev.leadingDimension()<<" "<<b_r_t_VERTEX_dmn_t::dmn_size()<<std::endl;
+  //std::cout<<"printing ldm resize..."<<M_matrix_up_dev.leadingDimension()<<" "<<G0_matrix_up_left_dev.leadingDimension()<<" "<<G0_matrix_up_right_dev.leadingDimension()<<" "<<M_G0_matrix_up_dev.leadingDimension()<<" "<<config_size_up<<std::endl;
+/*
+  auto get_device_data = [&](const linalg::Matrix<float, linalg::GPU>& data) {
+    cudaMemcpy2DAsync(G_r_t_up.values(), G_r_t_up[0] * sizeof(float), data.ptr(),
+                      data.leadingDimension() * sizeof(float),
+                      data.nrRows() * sizeof(float), data.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+    cudaStreamSynchronize(streams_[1]);
+  };
+*/
+
+  G_r_t_up(0,0)=1.2;
+  G_r_t_up(0,1)=1.8;
+  G_r_t_up(1,2)=1.7;
+
+  //M_matrix_up_dev = float(M_up); 
+
+  calc_G_r_t_OnDevice(spin_index_up, M_up.ptr(), M_up.leadingDimension(), M_matrix_up_dev.ptr(), M_matrix_up_dev.leadingDimension(),
+                      G0_matrix_up_left_dev.ptr(), G0_matrix_up_left_dev.leadingDimension(), G0_matrix_up_right_dev.ptr(), G0_matrix_up_right_dev.leadingDimension(),
+		      M_G0_matrix_up_dev.ptr(), M_G0_matrix_up_dev.leadingDimension(), G0_M_G0_matrix_up_dev.ptr(), G0_M_G0_matrix_up_dev.leadingDimension(),
+		      config_up_dev_.ptr(), config_size_up, fixed_config_dev.ptr(), fixed_config_.size(),
+		      G0_sign_up_dev.ptr(), G0_sign_up_dev.leadingDimension(), G0_sign_dn_dev.ptr(), G0_sign_dn_dev.leadingDimension(), 
+		      G0_original_up_dev.ptr(), G0_original_up_dev.leadingDimension(), G0_original_dn_dev.ptr(), G0_original_dn_dev.leadingDimension(),
+                      G_r_t_up_dev.ptr(), G_r_t_up_dev.leadngDimension(), akima_coefficients_host,  b_r_t_VERTEX_dmn_t::dmn_size(), 
+		      streams_[1], streams_id_[1], thread_id);
+
+  assert(cudaPeekAtLastError() == cudaSuccess);
+
+
+  calc_G_r_t_OnDevice(spin_index_dn, M_dn.ptr(), M_dn.leadingDimension(), M_matrix_dn_dev.ptr(), M_matrix_dn_dev.leadingDimension(),
+                      G0_matrix_dn_left_dev.ptr(), G0_matrix_dn_left_dev.leadingDimension(), G0_matrix_dn_right_dev.ptr(), G0_matrix_dn_right_dev.leadingDimension(),
+		      M_G0_matrix_dn_dev.ptr(), M_G0_matrix_dn_dev.leadingDimension(), G0_M_G0_matrix_dn_dev.ptr(), G0_M_G0_matrix_dn_dev.leadingDimension(),
+		      config_dn_dev_.ptr(), config_size_dn, fixed_config_dev.ptr(), fixed_config_.size(),
+		      G0_sign_up_dev.ptr(), G0_sign_up_dev.leadingDimension(), G0_sign_dn_dev.ptr(), G0_sign_dn_dev.leadingDimension(), 
+		      G0_original_up_dev.ptr(), G0_original_up_dev.leadingDimension(), G0_original_dn_dev.ptr(), G0_original_dn_dev.leadingDimension(),
+                      G_r_t_up_dev.ptr(), G_r_t_up_dev.leadngDimension(), akima_coefficients_host, b_r_t_VERTEX_dmn_t::dmn_size(), 
+		      streams_[1], streams_id_[1], thread_id);
+
+  assert(cudaPeekAtLastError() == cudaSuccess);
+
+
+
+
+  synchronizeStreams();
+
+
+  cudaMemcpy2DAsync(G_r_t_up.values(), G_r_t_up_test_host.nrRows()* sizeof(float), G_r_t_up_dev.ptr(),
+                      G_r_t_up_dev.leadingDimension() * sizeof(float),
+                      G_r_t_up_dev.nrRows() * sizeof(float), G_r_t_up_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+  
+  cudaMemcpy2DAsync(G_r_t_dn.values(), G_r_t_up_test_host.nrRows()* sizeof(float), G_r_t_dn_dev.ptr(),
+                      G_r_t_dn_dev.leadingDimension() * sizeof(float),
+                      G_r_t_dn_dev.nrRows() * sizeof(float), G_r_t_dn_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[0]);
+
+  cudaMemcpy2DAsync(G0_matrix_up_left.ptr(), G0_matrix_up_left.leadingDimension()*sizeof(float), G0_matrix_up_left_dev.ptr(),
+                      G0_matrix_up_left_dev.leadingDimension() * sizeof(float),
+                      G0_matrix_up_left_dev.nrRows() * sizeof(float), G0_matrix_up_left_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+  cudaMemcpy2DAsync(G0_matrix_dn_left.ptr(), G0_matrix_dn_left.leadingDimension()*sizeof(float), G0_matrix_dn_left_dev.ptr(),
+                      G0_matrix_dn_left_dev.leadingDimension() * sizeof(float),
+                      G0_matrix_dn_left_dev.nrRows() * sizeof(float), G0_matrix_dn_left_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[0]);
+  cudaMemcpy2DAsync(M_G0_matrix_up.ptr(), M_G0_matrix_up.leadingDimension()*sizeof(float), M_G0_matrix_up_dev.ptr(),
+                      M_G0_matrix_up_dev.leadingDimension() * sizeof(float),
+                      M_G0_matrix_up_dev.nrRows() * sizeof(float), M_G0_matrix_up_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+  cudaMemcpy2DAsync(M_G0_matrix_dn.ptr(), M_G0_matrix_dn.leadingDimension()*sizeof(float), M_G0_matrix_dn_dev.ptr(),
+                      M_G0_matrix_dn_dev.leadingDimension() * sizeof(float),
+                      M_G0_matrix_dn_dev.nrRows() * sizeof(float), M_G0_matrix_dn_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[0]);
+  assert(cudaPeekAtLastError() == cudaSuccess);
+
+  cudaMemcpy2DAsync(G0_M_G0_matrix_up.ptr(), G0_M_G0_matrix_up.leadingDimension()*sizeof(float),		       G0_M_G0_matrix_up_dev.ptr(),
+                      G0_M_G0_matrix_up_dev.leadingDimension() * sizeof(float),
+                      G0_M_G0_matrix_up_dev.nrRows() * sizeof(float), G0_M_G0_matrix_up_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+  cudaMemcpy2DAsync(G0_M_G0_matrix_dn.ptr(), G0_M_G0_matrix_dn.leadingDimension()*sizeof(float),		       G0_M_G0_matrix_dn_dev.ptr(),
+                      G0_M_G0_matrix_dn_dev.leadingDimension() * sizeof(float),
+                      G0_M_G0_matrix_dn_dev.nrRows() * sizeof(float), G0_M_G0_matrix_dn_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[0]);
+        
+    /*cudaMemcpy2DAsync(G_r_t_up_test_host.ptr(), G_r_t_up_test_host.nrRows()* sizeof(float), G_r_t_up_dev.ptr(),
+                      G_r_t_up_dev.leadingDimension() * sizeof(float),
+                      G_r_t_up_dev.nrRows() * sizeof(float), G_r_t_up_dev.nrCols(), cudaMemcpyDeviceToHost,
+                      streams_[1]);
+*/
+  synchronizeStreams();
+
+   	std::cout<<"G_r_t_up_dev: "<<G_r_t_up(0,0)<<" "<<G_r_t_up(0,1)<<" "<<G_r_t_up(1,2)<<" "<<G_r_t_up(G0_M_G0_matrix_up.size().first-1,G0_M_G0_matrix_up.size().second-1)<<std::endl;
+   	std::cout<<"G_r_t_dn_dev: "<<G_r_t_dn(0,0)<<" "<<G_r_t_dn(0,1)<<" "<<G_r_t_dn(1,2)<<" "<<G_r_t_dn(G0_M_G0_matrix_dn.size().first-1,G0_M_G0_matrix_dn.size().second-1)<<std::endl;
+//   	std::cout<<"G_r_t_acc_dev: "<<G_r_t_accumulated.size()<<" "<<G_r_t_accumulated(0)<<" "<<G_r_t_accumulated(1)<<" "<<G_r_t_accumulated(2)<<std::endl;
+
+    //get_device_data(G_r_t_up_dev);
+
+
+   	std::cout<<"G0_up_leftdev: "<<" "<<G0_matrix_up_left(0,0)<<" "<<G0_matrix_up_left(0,1)<<" "<<G0_matrix_up_left(1,0)<<" "<<G0_matrix_up_left(2,3)<<" "<<G0_matrix_up_left(3,2)<<std::endl;
+   	std::cout<<"G0_dn_leftdev: "<<" "<<G0_matrix_dn_left(0,0)<<" "<<G0_matrix_dn_left(0,1)<<" "<<G0_matrix_dn_left(1,0)<<" "<<G0_matrix_dn_left(2,3)<<" "<<G0_matrix_dn_left(3,2)<<std::endl;
+   	std::cout<<"MG0_up_dev: "<<" "<<M_G0_matrix_up(0,0)<<" "<<M_G0_matrix_up(0,1)<<" "<<M_G0_matrix_up(1,0)<<" "<<M_G0_matrix_up(2,3)<<" "<<M_G0_matrix_up(3,2)<<std::endl;
+   	std::cout<<"MG0_dn_dev: "<<" "<<M_G0_matrix_dn(0,0)<<" "<<M_G0_matrix_dn(0,1)<<" "<<M_G0_matrix_dn(1,0)<<" "<<M_G0_matrix_dn(2,3)<<" "<<M_G0_matrix_dn(3,2)<<std::endl;
+
+   	std::cout<<"G0MG0_up_dev: "<<" "<<G0_M_G0_matrix_up(0,0)<<" "<<G0_M_G0_matrix_up(0,1)<<" "<<G0_M_G0_matrix_up(1,0)<<" "<<G0_M_G0_matrix_up(2,3)<<" "<<G0_M_G0_matrix_up(3,2)<<" "<<G0_M_G0_matrix_up(G0_M_G0_matrix_up.size().first-1,G0_M_G0_matrix_up.size().second-1)<<std::endl;
+   	std::cout<<"G0MG0_dn_dev: "<<" "<<G0_M_G0_matrix_dn(0,0)<<" "<<G0_M_G0_matrix_dn(0,1)<<" "<<G0_M_G0_matrix_dn(1,0)<<" "<<G0_M_G0_matrix_dn(2,3)<<" "<<G0_M_G0_matrix_dn(3,2)<<" "<<G0_M_G0_matrix_dn(G0_M_G0_matrix_dn.size().first-1,G0_M_G0_matrix_dn.size().second-1)<<std::endl;
+
+
+
+}
+
+template <class parameters_type, class MOMS_type>
+//     template<class configuration_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate_G_r_t(double sign) {
+  for (int j = 0; j < b_r_t_VERTEX_dmn_t::dmn_size(); j++) {
+    for (int i = 0; i < b_r_t_VERTEX_dmn_t::dmn_size(); i++) {
+      G_r_t_accumulated(G0_indices_dn(i, j)) +=
+          sign * G0_integration_factor_dn(i, j) * G_r_t_dn(i, j);
+      G_r_t_accumulated_squared(G0_indices_dn(i, j)) +=
+          sign * G0_integration_factor_dn(i, j) * G_r_t_dn(i, j) * G_r_t_dn(i, j);
+
+      G_r_t_accumulated(G0_indices_up(i, j)) +=
+          sign * G0_integration_factor_up(i, j) * G_r_t_up(i, j);
+      G_r_t_accumulated_squared(G0_indices_up(i, j)) +=
+          sign * G0_integration_factor_up(i, j) * G_r_t_up(i, j) * G_r_t_up(i, j);
+    }
+  }
+}
+
+
+template <class parameters_type, class MOMS_type>
+int TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::find_first_non_interacting_spin(
+    const std::vector<vertex_singleton_type>& configuration_e_spin) {
+  int configuration_size = configuration_e_spin.size();
+
+  int vertex_index = 0;
+  while (vertex_index < configuration_size &&
+         configuration_e_spin[vertex_index].get_HS_spin() != HS_ZERO)
+    vertex_index++;
+
+  assert(vertex_index == configuration_size ||
+         configuration_e_spin[vertex_index].get_HS_spin() == HS_ZERO);
+
+  return vertex_index;
+}
+
+template <class parameters_type, class MOMS_type>
+template <class configuration_type, typename RealInp>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulateAll(
+    const configuration_type& configuration_e_up,
+    const dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_up_host,
+    const configuration_type& configuration_e_dn,
+    const dca::linalg::Matrix<RealInp, dca::linalg::CPU>& M_dn_host, int sign) {
+
+    dca::linalg::Matrix<RealInp, linalg::GPU> M_up_dev;
+    dca::linalg::Matrix<RealInp, linalg::GPU> M_dn_dev;
+
+    M_up_dev.setAsync(M_up_host, streams_[0]);
+    M_dn_dev.setAsync(M_dn_host, streams_[0]);
+
+    accumulateAll(configuration_e_up, M_up_dev, configuration_e_dn, M_dn_dev, sign);
+}
+
+template <class parameters_type, class MOMS_type>
+template <class configuration_type, typename RealInp>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulateAll(
+    const configuration_type& configuration_e_up,
+    const dca::linalg::Matrix<RealInp, dca::linalg::GPU>& M_up,
+    const configuration_type& configuration_e_dn,
+    const dca::linalg::Matrix<RealInp, dca::linalg::GPU>& M_dn, int sign) {
+
+
+  compute_G_r_t(configuration_e_up, M_up, configuration_e_dn, M_dn);
+
+  synchronizeStreams();
+
+  accumulate_G_r_t_orig(sign);
+//  accumulate_G_r_t_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign), G_r_t_accumulated_dev.ptr(), G_r_t_accumulated_squared_dev.ptr(), streams_[0] );
+
+  synchronizeStreams();
+
+//  cudaMemcpy(G_r_t_accumulated.values(), G_r_t_accumulated_dev.ptr(), G_r_t_accumulated_dev.size()* sizeof(double), 
+ //            cudaMemcpyDeviceToHost);
+   	
+ // std::cout<<"G_r_t_acc_dev: "<<G_r_t_accumulated.size()<<" "<<G_r_t_accumulated(0)<<" "<<G_r_t_accumulated(1)<<" "<<G_r_t_accumulated(2)<<" "<<G_r_t_accumulated(3)<<" "<<G_r_t_accumulated(4)<<" "<<G_r_t_accumulated(5)<<" "<<G_r_t_accumulated(6)<<" "<<G_r_t_accumulated(7)<<" "<<G_r_t_accumulated(8)<<" "<<G_r_t_accumulated(9)<<std::endl;
+  //std::cout<<G_r_t_up(0,0)<<" ";
+
+//  accumulate_moments(sign);
+
+//  accumulate_dwave_pp_correlator(sign);
+
+
+
+
+  event_.record(streams_[0]);
+  event_.record(streams_[1]);
+
+}
+
+template <class parameters_type, class MOMS_type>
+//     template<class configuration_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate_G_r_t_orig(double sign) {
+  for (int j = 0; j < b_r_t_VERTEX_dmn_t::dmn_size(); j++) {
+    for (int i = 0; i < b_r_t_VERTEX_dmn_t::dmn_size(); i++) {
+      G_r_t_accumulated(G0_indices_dn(i, j)) +=
+          sign * G0_integration_factor_dn(i, j) * G_r_t_dn(i, j);
+      G_r_t_accumulated_squared(G0_indices_dn(i, j)) +=
+          sign * G0_integration_factor_dn(i, j) * G_r_t_dn(i, j) * G_r_t_dn(i, j);
+
+      G_r_t_accumulated(G0_indices_up(i, j)) +=
+          sign * G0_integration_factor_up(i, j) * G_r_t_up(i, j);
+      G_r_t_accumulated_squared(G0_indices_up(i, j)) +=
+          sign * G0_integration_factor_up(i, j) * G_r_t_up(i, j) * G_r_t_up(i, j);
+    }
+  }
+}
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::synchronizeStreams() {
+  for (auto stream : streams_)
+    cudaStreamSynchronize(stream);
+}
+
+
+
+//template <class parameters_type, class MOMS_type>
+//void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::sumTo(
+//    dca::phys::solver::ctaux::TpEqualTimeAccumulator<parameters_type, MOMS_type>& other) const {
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::sumTo(this_type& other) {
+
+  
+  cudaStreamSynchronize(other.streams_[0]);
+  cudaStreamSynchronize(other.streams_[1]);
+  std::cout<<"in sumTo********************"<<std::endl;
+
+  other.G_r_t_accumulated += G_r_t_accumulated;
+  sum_OnDevice(G_r_t_accumulated_dev.ptr(), other.G_r_t_accumulated_dev.ptr(), G_r_t_accumulated_dev.size(),streams_[0]);
+
+
+  return;
+
+}
+
+}  // namespace ctaux
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca
+
+#endif  // DCA_PHYS_DCA_STEP_CLUSTER_SOLVER_CTAUX_ACCUMULATOR_TP_TP_EQUAL_TIME_ACCUMULATOR_HPP

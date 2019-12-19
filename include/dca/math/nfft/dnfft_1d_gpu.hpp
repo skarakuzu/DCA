@@ -121,6 +121,7 @@ Dnfft1DGpu<ScalarType, WDmn, RDmn, oversampling, CUBIC>::Dnfft1DGpu(const double
   func::dmn_variadic<BDmn, BDmn, RDmn> bbr_dmn;
   const int n_times = BaseClass::PaddedTimeDmn::dmn_size();
   accumulation_matrix_.resizeNoCopy(std::make_pair(n_times, bbr_dmn.get_size()));
+  assert(cudaPeekAtLastError() == cudaSuccess);
   if (accumulate_m_sqr)
     accumulation_matrix_sqr_.resizeNoCopy(accumulation_matrix_.size());
 
@@ -129,10 +130,14 @@ Dnfft1DGpu<ScalarType, WDmn, RDmn, oversampling, CUBIC>::Dnfft1DGpu(const double
 
 template <typename ScalarType, typename WDmn, typename RDmn, int oversampling>
 void Dnfft1DGpu<ScalarType, WDmn, RDmn, oversampling, CUBIC>::resetAccumulation() {
+//cudaMemsetAsync(accumulation_matrix_.ptr(), 0, accumulation_matrix_.leadingDimension() * accumulation_matrix_.nrCols() * sizeof(ScalarType), stream_);
+
   accumulation_matrix_.setToZero(stream_);
-  if (accumulate_m_sqr_)
-    accumulation_matrix_sqr_.setToZero(stream_);
   assert(cudaPeekAtLastError() == cudaSuccess);
+  if (accumulate_m_sqr_)
+{    accumulation_matrix_sqr_.setToZero(stream_);
+  assert(cudaPeekAtLastError() == cudaSuccess);
+}
 }
 
 template <typename ScalarType, typename WDmn, typename RDmn, int oversampling>

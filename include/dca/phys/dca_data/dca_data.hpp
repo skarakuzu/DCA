@@ -174,6 +174,8 @@ public:
 
   func::function<double, NuDmn> orbital_occupancy;
 
+  int current_dca_iteration=0;
+
 public:  // Optional members getters.
   auto& get_G_k_w_error() {
     if (not G_k_w_err_)

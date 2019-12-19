@@ -4,3 +4,10 @@ dca_add_gtest(tp_equal_time_accumulator_test
   INCLUDE_DIRS ${DCA_INCLUDE_DIRS};${PROJECT_SOURCE_DIR}
   LIBS     ${DCA_LIBS}
   )
+
+dca_add_gtest(tp_equal_time_accumulator_gpu_test
+  CUDA
+  GTEST_MAIN
+  INCLUDE_DIRS ${DCA_INCLUDE_DIRS};${PROJECT_SOURCE_DIR}
+  LIBS     ${DCA_LIBS}
+  )

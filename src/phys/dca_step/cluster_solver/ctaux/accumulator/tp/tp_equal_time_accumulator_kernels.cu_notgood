@@ -1,0 +1,266 @@
+// Copyright (C) 2018 ETH Zurich
+// Copyright (C) 2018 UT-Battelle, LLC
+// All rights reserved.
+//
+// See LICENSE.txt for terms of usage.
+// See CITATION.txt for citation guidelines if you use this code for scientific publications.
+//
+// Author: Giovanni Balduzzi (gbalduzz@itp.phys.ethz.ch)
+//
+// Implements the GPU kernels used by the DFT algorithm.
+
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/kernels_interface_for_eqtime.hpp"
+//#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/singleton_obj_dev.hpp"
+
+#include <array>
+#include <cassert>
+#include <complex>
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+#include <iostream>
+
+
+#include "dca/util/integer_division.hpp"
+#include "dca/linalg/util/cast_cuda.hpp"
+#include "dca/linalg/util/atomic_add_cuda.cu.hpp"
+#include "dca/linalg/util/complex_operators_cuda.cu.hpp"
+#include "dca/linalg/util/error_cuda.hpp"
+#include "dca/phys/dca_step/cluster_solver/ctaux/accumulator/tp/TpEqTime_helper.cuh"
+#include "dca/linalg/matrix.hpp"
+#include "dca/linalg/util/handle_functions.hpp"
+#include "dca/linalg/lapack/use_device.hpp"
+#include "dca/linalg/blas/cublas1.hpp"
+#include "dca/linalg/blas/cublas3.hpp"
+#include "dca/linalg/blas/cublas_conversion_char_types.hpp"
+#include "dca/linalg/blas/kernels_gpu.hpp"
+//#include "dca/linalg/blas/blas3.hpp"
+#include "dca/linalg/util/util_cublas.hpp"
+//#include "dca/linalg/blas/use_device.hpp"
+//#include "dca/linalg/blas/cublas3.hpp"
+//#include "dca/linalg/linalg.hpp"
+#include "dca/linalg/device_type.hpp"
+
+namespace dca {
+namespace phys {
+namespace solver {
+namespace ctaux {
+// dca::phys::solver::accumulator::details::
+
+using namespace linalg;
+using linalg::util::castCudaComplex;
+using linalg::util::CudaComplex;
+
+std::array<int, 2> getBlockSize1D(const int ni, const int block_size) {
+  const int n_threads = std::min(block_size, ni);
+  const int n_blocks = dca::util::ceilDiv(ni, n_threads);
+  return std::array<int, 2>{n_blocks, n_threads};
+}
+
+
+std::array<dim3, 2> getBlockSize(const uint i, const uint j, const uint block_size = 32) {
+  const uint n_threads_i = std::min(block_size, i);
+  const uint n_threads_j = std::min(block_size, j);
+  if (n_threads_i * n_threads_j > 32 * 32)
+    throw(std::logic_error("Block size is too big"));
+
+  const uint n_blocks_i = dca::util::ceilDiv(i, n_threads_i);
+  const uint n_blocks_j = dca::util::ceilDiv(j, n_threads_j);
+
+//  std::cout<<"blocs: "<<n_blocks_i<<" "<<n_blocks_j<<" "<<n_threads_i<<" "<<n_threads_j<<std::endl;
+  return std::array<dim3, 2>{dim3(n_blocks_i, n_blocks_j), dim3(n_threads_i, n_threads_j)};
+}
+
+std::array<dim3, 2> getBlockSize3D(const uint i, const uint j, const uint k) {
+  const uint n_threads_k = std::min(uint(8), k);
+  const uint max_block_size_ij = n_threads_k > 1 ? 8 : 32;
+  const uint n_threads_i = std::min(max_block_size_ij, i);
+  const uint n_threads_j = std::min(max_block_size_ij, j);
+
+  const uint n_blocks_i = dca::util::ceilDiv(i, n_threads_i);
+  const uint n_blocks_j = dca::util::ceilDiv(j, n_threads_j);
+  const uint n_blocks_k = dca::util::ceilDiv(k, n_threads_k);
+
+  return std::array<dim3, 2>{dim3(n_blocks_i, n_blocks_j, n_blocks_k),
+                             dim3(n_threads_i, n_threads_j, n_threads_k)};
+}
+
+
+template <typename ScalarType>
+__global__ void compute_G_r_t_up_Kernel(float* G0_M_G0_matrix_dev, int ldG0MG0, float* G0_sign_up, int ldG0_sign_up, float*G0_original_up, int ldG0_original_up, float*G_r_t, int ldGrt, int Gdmnsize)
+{
+
+  const int n_rows = Gdmnsize;
+  const int n_cols = Gdmnsize;
+
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (id_i >= n_rows || id_j >= n_cols)
+    return;
+
+
+  G_r_t[id_i + id_j*ldGrt] = G0_sign_up[id_i+ldG0_sign_up*id_j] * (G0_original_up[id_i+ldG0_original_up*id_j] - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
+  //G_r_t[id_i + id_j*ldGrt] =  (tpeqtime_helper.G0_original_up_mat(id_i,id_j));
+
+}
+
+template <typename ScalarType>
+__global__ void compute_G_r_t_dn_Kernel(float* G0_M_G0_matrix_dev, int ldG0MG0, float* G0_sign_dn, int ldG0_sign_dn, float*G0_original_dn, int ldG0_original_dn, float*G_r_t, int ldGrt, int Gdmnsize)
+{
+
+  const int n_rows = Gdmnsize ;
+  const int n_cols = Gdmnsize;
+
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (id_i >= n_rows || id_j >= n_cols)
+    return;
+
+
+  G_r_t[id_i + id_j*ldGrt] = G0_sign_dn[id_i+ldG0_sign_dn*id_j] * (G0_original_dn[id_i+ldG0_original_dn*id_j] - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
+  //G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_dn_mat(id_i,id_j) * (tpeqtime_helper.G0_original_dn_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
+  //G_r_t[id_i + id_j*ldGrt] =  (tpeqtime_helper.G0_original_dn_mat(id_i,id_j) );
+
+}
+
+
+template <typename ScalarType>
+__global__ void compute_G0_matrix_Kernel(int spin_index, const ScalarType* M, int ldM, float* M_temp,int ldM_temp, float* G0_matrix_left_dev, int ldG0_left, float* G0_matrix_right_dev, int ldG0_right,  const ConfigElemTpEqTime* config_, int config_size, const singleton_operator_dev* fixed_config_, int fixed_config_size, float*G_r_t, double* akima_host)
+{
+
+  const int n_rows = config_size;
+  const int n_cols = fixed_config_size;
+
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
+  if (id_i >= n_rows || id_j >= n_cols)
+    return;
+  
+ if (id_i < n_rows && id_j < n_rows) { M_temp[id_i + id_j*ldM_temp] = float(M[id_i + id_j*ldM]); }
+
+  int r_ind_right, r_ind_left, b_i, b_j, r_i, r_j;    //, s_i, s_j;
+  ScalarType t_i, t_j, delta_tau_right, delta_tau_left;  //, scaled_tau, f_tau;
+
+    b_j = fixed_config_[id_j].b_ind;
+    r_j = fixed_config_[id_j].r_ind;
+    t_j = fixed_config_[id_j].t_val;
+
+      b_i = config_[id_i].band;
+      r_i = config_[id_i].rsite;
+      t_i = config_[id_i].tau;
+
+
+	r_ind_right = tpeqtime_helper.rMinus(r_j,r_i);
+        delta_tau_right = t_i - t_j;
+
+	r_ind_left = tpeqtime_helper.rMinus(r_i,r_j);
+        delta_tau_left = t_j - t_i;
+
+       G0_matrix_right_dev[id_i + id_j*ldG0_right] = tpeqtime_helper.akima_coeff_mat(b_i, spin_index, b_j, spin_index, r_ind_right, delta_tau_right,akima_host); //??
+       G0_matrix_left_dev[id_j + id_i*ldG0_left] = tpeqtime_helper.akima_coeff_mat(b_j, spin_index, b_i, spin_index, r_ind_left, delta_tau_left,akima_host); //??
+}
+
+template <typename ScalarType>
+void calc_G_r_t_OnDevice(int spin_index, const ScalarType* M, int ldM, float* M_temp, int ldM_temp, float* G0_matrix_left_dev, int ldG0_left, float* G0_matrix_right_dev, int ldG0_right, float* M_G0_matrix_dev, int ldMG0, float* G0_M_G0_matrix_dev, int ldG0MG0, const ConfigElemTpEqTime* config_, int config_size, const singleton_operator_dev* fixed_config_, int fixed_config_size, float* G0_sign_up, int ldG0_sign_up, float* G0_sign_dn, int ldG0_sign_dn, float* G0_original_up, int ldG0_original_up, float* G0_original_dn, int ldG0_original_dn, float* G_r_t, int ldGrt, double* akima_host, int Gdmnsize, cudaStream_t stream_, int stream_id, int thread_id)
+{
+
+  const int n_rows = config_size;
+  const int n_cols = Gdmnsize;
+
+//  auto blocks_right = getBlockSize(n_rows, n_cols);
+  auto blocks_left = getBlockSize(n_cols, n_cols);
+  auto blocks = getBlockSize(n_rows, n_cols);
+
+     compute_G0_matrix_Kernel<ScalarType><<<blocks[0], blocks[1], 0, stream_>>>(spin_index, M, ldM, M_temp, ldM_temp, G0_matrix_left_dev, ldG0_left, G0_matrix_right_dev,ldG0_right, config_, config_size, fixed_config_, fixed_config_size, G_r_t, akima_host);
+
+
+    cudaStreamSynchronize(stream_);
+	float alpha=1.0;
+	float beta=0.0;
+	cublasHandle_t handle = dca::linalg::util::getHandle(thread_id, stream_id);
+    dca::linalg::cublas::gemm(handle,"N", "N", n_rows, n_cols, n_rows , alpha, M_temp, ldM_temp, G0_matrix_right_dev, ldG0_right, beta, M_G0_matrix_dev, ldMG0);
+    cudaStreamSynchronize(stream_);
+    dca::linalg::cublas::gemm(handle,"N", "N", n_cols, n_cols, n_rows , alpha, G0_matrix_left_dev, ldG0_left, M_G0_matrix_dev, ldMG0, beta, G0_M_G0_matrix_dev, ldG0MG0);
+//    dca::linalg::matrixop::gemm(G0_matrix_left_dev, M_G0_matrix_dev, G0_M_G0_matrix_dev);
+    cudaStreamSynchronize(stream_);
+    if (spin_index==1)
+     compute_G_r_t_up_Kernel<ScalarType><<<blocks_left[0], blocks_left[1], 0, stream_>>>(G0_M_G0_matrix_dev, ldG0MG0, G0_sign_up, ldG0_sign_up, G0_original_up, ldG0_original_up, G_r_t, ldGrt, Gdmnsize);
+    else     
+     compute_G_r_t_dn_Kernel<ScalarType><<<blocks_left[0], blocks_left[1], 0, stream_>>>(G0_M_G0_matrix_dev, ldG0MG0, G0_sign_dn, ldG0_sign_dn, G0_original_dn, ldG0_original_dn, G_r_t, ldGrt, Gdmnsize);
+}
+
+template <typename ScalarType>
+__global__ void accumulate_G_r_t_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float* G0_integration_factor_up, int ldG0_integration_factor_up, float* G0_integration_factor_dn, int ldG0_integration_factor_dn, float* G0_indices_up, int ldG0_indices_up, float*G0_indices_dn, int ldG0_indices_dn, ScalarType sign, double* G_r_t_accumulated, double* G_r_t_accumulated_squared)
+{
+
+  const int n_rows = tpeqtime_helper.get_G0dmnsize();
+  const int n_cols = tpeqtime_helper.get_G0dmnsize();
+
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (id_i >= n_rows || id_j >= n_cols)
+    return;
+
+  int index_up  = G0_indices_up[id_i+ldG0_indices_up*id_j];
+  int index_dn  = G0_indices_dn[id_i+ldG0_indices_dn*id_j];
+
+  G_r_t_accumulated[index_dn] += sign*G0_integration_factor_dn[id_i+ldG0_integration_factor_dn *id_j] * G_r_t_dn[id_i + id_j*ldGrt_dn];
+  G_r_t_accumulated[index_up] += sign*G0_integration_factor_up[id_i+ldG0_integration_factor_up *id_j] * G_r_t_up[id_i + id_j*ldGrt_up];
+
+  G_r_t_accumulated_squared[index_dn] += sign*G0_integration_factor_dn[id_i+ldG0_integration_factor_dn *id_j] * G_r_t_dn[id_i + id_j*ldGrt_dn] * G_r_t_dn[id_i + id_j*ldGrt_dn];
+  G_r_t_accumulated_squared[index_up] += sign*G0_integration_factor_up[id_i+ldG0_integration_factor_up *id_j] * G_r_t_up[id_i + id_j*ldGrt_up] * G_r_t_up[id_i + id_j*ldGrt_up];
+
+}
+
+template <typename ScalarType>
+void accumulate_G_r_t_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float* G0_integration_factor_up, int ldG0_integration_factor_up, float* G0_integration_factor_dn, int ldG0_integration_factor_dn, float* G0_indices_up, int ldG0_indices_up, float*G0_indices_dn, int ldG0_indices_dn, ScalarType sign, double* G_r_t_accumulated, double* G_r_t_accumulated_squared, cudaStream_t stream_)
+{
+
+  const int n_rows = ldGrt_up;
+  const int n_cols = ldGrt_up;
+  auto blocks = getBlockSize(n_rows, n_cols);
+
+     accumulate_G_r_t_OnDevice_Kernel<ScalarType><<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, G0_integration_factor_up, ldG0_integration_factor_up, G0_integration_factor_dn, ldG0_integration_factor_dn, G0_indices_up, ldG0_indices_up, G0_indices_dn,  ldG0_indices_dn, sign, G_r_t_accumulated, G_r_t_accumulated_squared);
+
+}
+
+__global__ void sum_OnDevice_Kernel( double* inMatrix, double* outMatrix, int ldM)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (i < ldM) {
+    outMatrix[i] += inMatrix[i];
+  }
+}
+
+
+
+void sum_OnDevice(double* inMatrix, double* outMatrix, int ldM, cudaStream_t stream_)
+{
+
+  const int n = ldM;
+  auto blocks = getBlockSize1D(n,128);
+
+     sum_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(inMatrix, outMatrix, ldM);
+
+}
+
+
+
+template void accumulate_G_r_t_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float* G0_integration_factor_up, int ldG0_integration_factor_up, float* G0_integration_factor_dn, int ldG0_integration_factor_dn, float* G0_indices_up, int ldG0_indices_up, float*G0_indices_dn, int ldG0_indices_dn, double sign, double* G_r_t_accumulated, double* G_r_t_accumulated_squared, cudaStream_t stream_);
+
+
+template void accumulate_G_r_t_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float* G0_integration_factor_up, int ldG0_integration_factor_up, float* G0_integration_factor_dn, int ldG0_integration_factor_dn, float* G0_indices_up, int ldG0_indices_up, float*G0_indices_dn, int ldG0_indices_dn, float sign, double* G_r_t_accumulated, double* G_r_t_accumulated_squared, cudaStream_t stream_);
+
+
+template void calc_G_r_t_OnDevice<double>(int spin_index, const double* M, int ldM, float* M_temp, int ldM_temp, float* G0_matrix_left_dev, int ldG0_left, float* G0_matrix_right_dev, int ldG0_right, float* M_G0_matrix_dev, int ldMG0, float* G0_M_G0_matrix_dev, int ldG0MG0, const ConfigElemTpEqTime* config_, int config_size, const singleton_operator_dev* fixed_config_, int fixed_config_size, float* G0_sign_up, int ldG0_sign_up, float* G0_sign_dn, int ldG0_sign_dn, float* G0_original_up, int ldG0_original_up, float* G0_original_dn, int ldG0_original_dn, float* G_r_t, int ldGrt,  double* akima_host, int Gdmnsize, cudaStream_t stream_, int stream_id, int thread_id);
+
+template void calc_G_r_t_OnDevice<float>(int spin_index, const float* M, int ldM, float* M_temp, int ldM_temp, float* G0_matrix_left_dev, int ldG0_left, float* G0_matrix_right_dev, int ldG0_right, float* M_G0_matrix_dev, int ldMG0, float* G0_M_G0_matrix_dev, int ldG0MG0, const ConfigElemTpEqTime* config_, int config_size, const singleton_operator_dev* fixed_config_, int fixed_config_size, float* G0_sign_up, int ldG0_sign_up, float* G0_sign_dn, int ldG0_sign_dn, float* G0_original_up, int ldG0_original_up, float* G0_original_dn, int ldG0_original_dn, float* G_r_t, int ldGrt,  double* akima_host,int Gdmnsize, cudaStream_t stream_, int stream_id, int thread_id);
+
+}  // namespace ctaux
+}  // namespace solver
+}  // namespace phys
+}  // namespace dca
