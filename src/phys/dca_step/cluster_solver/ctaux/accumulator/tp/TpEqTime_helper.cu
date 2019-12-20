@@ -86,12 +86,12 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMalloc(&host_helper.sub_matrix_, sizeof(int) * lds * nr_sub);
     cudaMemcpy(host_helper.sub_matrix_, sub_r, sizeof(int) * lds * nr_sub, cudaMemcpyHostToDevice);
 
-/*    cudaMalloc(&host_helper.G0_indices_up_, sizeof(float) * ldG0_indices_up * G0dmnsize);
-    cudaMemcpy(host_helper.G0_indices_up_, G0_indices_up, sizeof(float) * ldG0_indices_up * G0dmnsize,
+    cudaMalloc(&host_helper.G0_indices_up_, sizeof(int) * ldG0_indices_up * G0dmnsize);
+    cudaMemcpy(host_helper.G0_indices_up_, G0_indices_up, sizeof(int) * ldG0_indices_up * G0dmnsize,
                cudaMemcpyHostToDevice);
 
-    cudaMalloc(&host_helper.G0_indices_dn_, sizeof(float) * ldG0_indices_dn * G0dmnsize);
-    cudaMemcpy(host_helper.G0_indices_dn_, G0_indices_dn, sizeof(float) * ldG0_indices_dn * G0dmnsize,
+    cudaMalloc(&host_helper.G0_indices_dn_, sizeof(int) * ldG0_indices_dn * G0dmnsize);
+    cudaMemcpy(host_helper.G0_indices_dn_, G0_indices_dn, sizeof(int) * ldG0_indices_dn * G0dmnsize,
                cudaMemcpyHostToDevice);
 
     cudaMalloc(&host_helper.G0_sign_up_, sizeof(float) * ldG0_sign_up * G0dmnsize);
@@ -117,7 +117,7 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMalloc(&host_helper.G0_original_dn_, sizeof(float) * ldG0_original_dn *G0dmnsize);
     cudaMemcpy(host_helper.G0_original_dn_, G0_original_dn, sizeof(float) * ldG0_original_dn *G0dmnsize,
                cudaMemcpyHostToDevice);
-*/
+/*
     cudaMalloc(&host_helper.G0_indices_up_, sizeof(int) * G0dmnsize * G0dmnsize);
     cudaMemcpy(host_helper.G0_indices_up_, G0_indices_up, sizeof(int) * G0dmnsize * G0dmnsize,
                cudaMemcpyHostToDevice);
@@ -149,6 +149,10 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMalloc(&host_helper.G0_original_dn_, sizeof(float) * G0dmnsize *G0dmnsize);
     cudaMemcpy(host_helper.G0_original_dn_, G0_original_dn, sizeof(float) * G0dmnsize *G0dmnsize,
                cudaMemcpyHostToDevice);
+
+*/
+
+
     cudaMalloc(&host_helper.akima_coefficients_, sizeof(double) * akima_size);
     cudaMemcpy(host_helper.akima_coefficients_, akima_coeff, sizeof(double) * akima_size,
                cudaMemcpyHostToDevice);

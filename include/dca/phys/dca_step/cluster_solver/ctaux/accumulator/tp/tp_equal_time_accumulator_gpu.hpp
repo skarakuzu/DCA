@@ -950,7 +950,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate
   accumulate_G_r_t_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign), G_r_t_accumulated_dev.ptr(), G_r_t_accumulated_squared_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), streams_[0] );
   assert(cudaPeekAtLastError() == cudaSuccess);
 
-  accumulate_chi_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,spin_ZZ_chi_accumulated_dev.ptr(),  spin_ZZ_chi_stddev_dev.ptr(), spin_XX_chi_accumulated_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), streams_[1]);
+  accumulate_chi_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,spin_ZZ_chi_accumulated_dev.ptr(),  spin_ZZ_chi_stddev_dev.ptr(), spin_XX_chi_accumulated_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), r_dmn_t::dmn_size() ,t_VERTEX::dmn_size(), streams_[1]);
   assert(cudaPeekAtLastError() == cudaSuccess);
 
 /*
