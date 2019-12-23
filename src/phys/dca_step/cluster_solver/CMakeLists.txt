@@ -17,6 +17,8 @@ if (DCA_HAVE_CUDA)
             ctaux/walker/tools/g0_interpolation/g0_interpolation_kernels.cu
             ctaux/walker/tools/g_matrix_tools/g_matrix_tools_kernels.cu
             ctaux/walker/tools/n_matrix_tools/n_matrix_tools_kernels.cu
+	    ctaux/accumulator/tp/TpEqTime_helper.cu
+            ctaux/accumulator/tp/tp_equal_time_accumulator_kernels.cu
 
             # Shared Tools
             shared_tools/accumulation/tp/ndft/ndft_kernels.cu
