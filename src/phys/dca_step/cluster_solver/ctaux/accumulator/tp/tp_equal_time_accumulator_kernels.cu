@@ -354,7 +354,7 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
           //spin_XX_chi_accumulated[index] -= sfactor* updn*sign;
           spin_XX_contribution -= sfactor* updn*sign;
           //atomicAdd(&spin_XX_contribution, -sfactor* updn*sign);
-          //atomicAdd(&spin_ZZ_val, -updn);
+          spin_ZZ_val += -updn;
         }
         atomicAdd(&spin_XX_chi_accumulated[index],spin_XX_contribution);
         atomicAdd(&spin_ZZ_chi_accumulated[index], spin_ZZ_val * sfactor * sign);
