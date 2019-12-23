@@ -153,6 +153,18 @@ public:
   func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t() {
     return G_r_t;
   }
+  func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t_stddev() {
+    return G_r_t_stddev;
+  }
+  func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_charge_cluster_moment() {
+    return charge_cluster_moment;
+  }
+  func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_magnetic_cluster_moment() {
+    return magnetic_cluster_moment;
+  }
+  func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_dwave_pp_correlator() {
+    return dwave_pp_correlator;
+  }
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_ZZ_chi() {
     return spin_ZZ_chi_accumulated;
   }
