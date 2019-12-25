@@ -982,6 +982,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate
 
 
 
+  synchronizeStreams();
 
   event_.record(streams_[0]);
   event_.record(streams_[1]);

@@ -296,7 +296,8 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
 
   int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt, index, index0, indexL;
   int endL = t_VERTEX_dmn_size-1;
-  double upup, updn, spin_ZZ_val, spin_XX_contribution;
+  float upup, updn, spin_ZZ_val, spin_XX_contribution;
+  double XX_val, ZZ_val, ZZ_stddev;
   //int t_VERTEX_dmn_size = tpeqtime_helper.get_t_VERTEX_dmn_size();
   //double r_dmn_t_size = double(tpeqtime_helper.get_r_dmn_t_size());
 
@@ -355,18 +356,32 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
           spin_XX_contribution -= sfactor* updn*sign;
           //atomicAdd(&spin_XX_contribution, -sfactor* updn*sign);
           spin_ZZ_val += -updn;
+          //atomicAdd(&spin_ZZ_val,-updn);
         }
-        atomicAdd(&spin_XX_chi_accumulated[index],spin_XX_contribution);
-        atomicAdd(&spin_ZZ_chi_accumulated[index], spin_ZZ_val * sfactor * sign);
-        atomicAdd(&spin_ZZ_chi_stddev[index], spin_ZZ_val * spin_ZZ_val * sfactor * sign);
+        atomicAdd(&spin_XX_chi_accumulated[index],double(spin_XX_contribution));
+        atomicAdd(&spin_ZZ_chi_accumulated[index], double(spin_ZZ_val * sfactor * sign));
+        atomicAdd(&spin_ZZ_chi_stddev[index], double(spin_ZZ_val * spin_ZZ_val * sfactor * sign));
+
+      /*index0 = tpeqtime_helper.chi_index(b_i,b_j,dr,0);
+      XX_val = spin_XX_chi_accumulated[index0];
+      ZZ_val = spin_ZZ_chi_accumulated[index0];
+      ZZ_stddev = spin_ZZ_chi_stddev[index0];
+
+      spin_XX_chi_accumulated[indexL] = XX_val;
+      spin_ZZ_chi_accumulated[indexL] = ZZ_val;
+	*/
+      if(dt==0)
+	{
+        indexL = tpeqtime_helper.chi_index(b_i,b_j,dr,t_VERTEX_dmn_size-1);
+        atomicAdd(&spin_XX_chi_accumulated[indexL],double(spin_XX_contribution));
+        atomicAdd(&spin_ZZ_chi_accumulated[indexL], double(spin_ZZ_val * sfactor * sign));
+        atomicAdd(&spin_ZZ_chi_stddev[indexL], double(spin_ZZ_val * spin_ZZ_val * sfactor * sign));
+
+	}
 
       }
       // chi(beta) = chi(0)
-      index0 = tpeqtime_helper.chi_index(b_i,b_j,dr,0);
-      indexL = tpeqtime_helper.chi_index(b_i,b_j,dr,endL);
-      spin_XX_chi_accumulated[indexL] = spin_XX_chi_accumulated[index0];
-      spin_ZZ_chi_accumulated[indexL] = spin_ZZ_chi_accumulated[index0];
-      spin_ZZ_chi_stddev[indexL] = spin_ZZ_chi_stddev[index0];
+      //spin_ZZ_chi_stddev[indexL] = ZZ_stddev;
 
 
 }
@@ -380,6 +395,7 @@ void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* 
   const int n_rows = G0dmnsize;
   const int n_cols = G0dmnsize;
   auto blocks = getBlockSize(n_rows, n_cols,24);
+  //auto blocks = getBlockSize(n_rows, n_cols);
 
   double sfactor = 0.5/double(((t_VERTEX_dmn_size-1.0)*r_dmn_t_dmn_size));
 

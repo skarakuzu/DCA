@@ -26,7 +26,6 @@ using TpEqualTimeAccumulatorGpuTest =
 
 using Configuration = std::array<std::vector<dca::phys::solver::ctaux::vertex_singleton>, 2>;
 using Sample = std::array<dca::linalg::Matrix<double, dca::linalg::CPU>,2 >;
-using SampleGPU = std::array<dca::linalg::Matrix<double, dca::linalg::GPU>,2 >;
 
 void buildConfiguration(Configuration& config, Sample& sample, int b_size, int r_size, double beta,
                         std::array<int, 2> n);
@@ -45,13 +44,21 @@ TEST_F(TpEqualTimeAccumulatorGpuTest, AccumulateAndSum) {
       dca::phys::solver::ctaux::TpEqualTimeAccumulator<G0Setup::Parameters, G0Setup::Data, dca::linalg::GPU>;
 
   AccumulatorCPU accumulator1(parameters_, *data_, 0);
+  AccumulatorCPU accumulator_sum_cpu(parameters_, *data_, 0);
   AccumulatorGPU accumulator2(parameters_, *data_, 0);
+  AccumulatorGPU accumulator_sum_gpu(parameters_, *data_, 0);
   int sign = -1;
 
+  accumulator1.resetAccumulation();
   accumulator1.accumulateAll(config[0], M[0], config[1], M[1], sign);
+  //accumulator1.sumTo(accumulator_sum_cpu);
+  //accumulator_sum_cpu.finalize();
   accumulator1.finalize();
 
+  accumulator2.resetAccumulation();
   accumulator2.accumulateAll(config[0], M[0], config[1], M[1], sign);
+  //accumulator2.sumTo(accumulator_sum_gpu);
+  //accumulator_sum_gpu.finalize();
   accumulator2.finalize();
 
   auto expect_near = [](const auto& f1, const auto f2) {
@@ -65,6 +72,10 @@ TEST_F(TpEqualTimeAccumulatorGpuTest, AccumulateAndSum) {
   };
 
   expect_near(accumulator1.get_G_r_t(), accumulator2.get_G_r_t());
+  expect_near(accumulator1.get_G_r_t_stddev(), accumulator2.get_G_r_t_stddev());
+  expect_near(accumulator1.get_spin_ZZ_chi(), accumulator2.get_spin_ZZ_chi());
+  expect_near(accumulator1.get_spin_XX_chi(), accumulator2.get_spin_XX_chi());
+  expect_near(accumulator1.get_spin_ZZ_chi_stddev(), accumulator2.get_spin_ZZ_chi_stddev());
 }
 
 void buildConfiguration(Configuration& config, Sample& sample, int b_size, int r_size, double beta,
