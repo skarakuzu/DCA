@@ -106,6 +106,7 @@ __global__ void compute_G_r_t_up_Kernel(float* G0_M_G0_matrix_dev,int ldG0MG0, f
 
   //G_r_t[id_i + id_j*ldGrt] = (G0_matrix_left_dev[id_i + id_j*ldG0_left]);
   //G_r_t[id_i + id_j*ldGrt] = (G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
+  //G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_up_mat(id_i,id_j) * (tpeqtime_helper.G0_original_up_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
   G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_up_mat(id_i,id_j) * (tpeqtime_helper.G0_original_up_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
 
 }
@@ -129,6 +130,7 @@ __global__ void compute_G_r_t_dn_Kernel(float* G0_M_G0_matrix_dev, int ldG0MG0, 
 
   //G_r_t[id_i + id_j*ldGrt] = (G0_matrix_right_dev[id_i + id_j*ldG0_right]);
   //G_r_t[id_i + id_j*ldGrt] = (G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
+  //G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_dn_mat(id_i,id_j) *( tpeqtime_helper.G0_original_dn_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
   G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_dn_mat(id_i,id_j) *( tpeqtime_helper.G0_original_dn_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
 
 }
@@ -146,7 +148,13 @@ __global__ void compute_G0_matrix_Kernel(int spin_index, const ScalarType* M, in
   if (id_i >= n_rows || id_j >= n_cols)
     return;
   
- if (id_i < n_rows && id_j < n_rows) { M_temp[id_i + id_j*ldM_temp] = float(M[id_i + id_j*ldM]); }
+// if (id_i < n_rows && id_j < n_rows) {
+
+//  M_temp[id_i + id_j*ldM_temp] = float(M[id_i + id_j*ldM]); 
+// M_temp[id_i + id_i*ldM_temp] = 1.0; 
+//if(id_i==id_j)  atomicExch(&M_temp[id_i + id_i*ldM_temp],float(1.0)); 
+
+//}
  //if (id_i < n_rows && id_j < n_rows) { M_temp[id_i + id_j*ldM_temp] = float(1.0); }
 
   int r_ind_right, r_ind_left, b_i, b_j, r_i, r_j;    //, s_i, s_j;
@@ -171,6 +179,25 @@ __global__ void compute_G0_matrix_Kernel(int spin_index, const ScalarType* M, in
        G0_matrix_left_dev[id_j + id_i*ldG0_left] = tpeqtime_helper.akima_coeff_mat(b_j, spin_index, b_i, spin_index, r_ind_left, delta_tau_left); //??
 }
 
+
+
+template <typename ScalarType>
+__global__ void setM_temp_Kernel(const ScalarType * M, int ldM, float* M_temp, int ldM_temp, int config_size)
+{
+
+  const int n_rows = config_size;
+  const int n_cols = config_size;
+  
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (id_i >= n_rows || id_j >= n_cols)
+    return;
+
+
+  M_temp[id_i + id_j*ldM_temp] = float(M[id_i + id_j*ldM]); 
+
+}
 
 __global__ void gemm_Kernel(int n_sum,int n_rows, int n_cols,float * A, int lda, float* B, int ldb, float* C, int ldc)
 {
@@ -198,27 +225,32 @@ void calc_G_r_t_OnDevice(int spin_index, const ScalarType* M, int ldM, float* M_
   const int n_rows = config_size;
   const int n_cols = Gdmnsize;
 
-//  auto blocks_right = getBlockSize(n_rows, n_cols);
+  auto blocks_right = getBlockSize(n_rows, n_rows);
   auto blocks_left = getBlockSize(n_cols, n_cols);
   auto blocks = getBlockSize(n_rows, n_cols);
 
      compute_G0_matrix_Kernel<ScalarType><<<blocks[0], blocks[1], 0, stream_>>>(spin_index, M, ldM, M_temp, ldM_temp, G0_matrix_left_dev, ldG0_left, G0_matrix_right_dev,ldG0_right, config_, config_size, Gdmnsize);
 
+     setM_temp_Kernel<ScalarType><<<blocks_right[0], blocks_right[1], 0, stream_>>>(M, ldM, M_temp, ldM_temp, config_size);
 
-/*	float alpha=1.0;
+/*
     cudaStreamSynchronize(stream_);
+
+	float alpha=1.0;
 	float beta=0.0;
 	cublasHandle_t handle0 = dca::linalg::util::getHandle(thread_id, stream_id);
     dca::linalg::cublas::gemm(handle0,"N", "N", n_rows, n_cols, n_rows , alpha, M_temp, ldM_temp, G0_matrix_right_dev, ldG0_right, beta, M_G0_matrix_dev, ldMG0);
-    cudaStreamSynchronize(stream_);
     dca::linalg::cublas::gemm(handle0,"N", "N", n_cols, n_cols, n_rows , alpha, G0_matrix_left_dev, ldG0_left, M_G0_matrix_dev, ldMG0, beta, G0_M_G0_matrix_dev, ldG0MG0);
+
+
     cudaStreamSynchronize(stream_);
 
+   std::cout<<"ldM_temp: "<<ldM_temp<<" "<<config_size<<" "<<Gdmnsize<<std::endl;   
 */
-
 
     gemm_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(n_rows,n_rows, n_cols, M_temp, ldM_temp, G0_matrix_right_dev, ldG0_right, M_G0_matrix_dev, ldMG0);
     gemm_Kernel<<<blocks_left[0], blocks_left[1], 0, stream_>>>(n_rows,n_cols,n_cols,G0_matrix_left_dev, ldG0_left, M_G0_matrix_dev, ldMG0, G0_M_G0_matrix_dev, ldG0MG0);
+//    gemm_Kernel<<<blocks_left[0], blocks_left[1], 0, stream_>>>(n_rows,n_cols,n_cols,G0_matrix_left_dev, ldG0_left, G0_matrix_right_dev, ldG0_right, G0_M_G0_matrix_dev, ldG0MG0); //for test
 
     if (spin_index==1)
      compute_G_r_t_up_Kernel<ScalarType><<<blocks_left[0], blocks_left[1], 0, stream_>>>(G0_M_G0_matrix_dev, ldG0MG0, G_r_t, ldGrt, Gdmnsize, G0_matrix_left_dev, ldG0_left, config_size);
@@ -297,7 +329,7 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
   int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt, index, index0, indexL;
   int endL = t_VERTEX_dmn_size-1;
   float upup, updn, spin_ZZ_val, spin_XX_contribution;
-  double XX_val, ZZ_val, ZZ_stddev;
+ // double XX_val, ZZ_val, ZZ_stddev;
   //int t_VERTEX_dmn_size = tpeqtime_helper.get_t_VERTEX_dmn_size();
   //double r_dmn_t_size = double(tpeqtime_helper.get_r_dmn_t_size());
 

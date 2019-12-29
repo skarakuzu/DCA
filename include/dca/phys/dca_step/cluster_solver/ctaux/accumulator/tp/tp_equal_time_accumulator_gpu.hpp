@@ -357,7 +357,7 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::TpEqualTimeAccu
 
 //if(measureNow)
 //{
-  std::cout<<"In Child Equal-time Accumulator*****************: "<<id<<std::endl;
+  //std::cout<<"In Child Equal-time Accumulator*****************: "<<id<<std::endl;
   G_r_t_up_dev.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
   assert(cudaPeekAtLastError() == cudaSuccess);
   G_r_t_dn_dev.resizeNoCopy(std::make_pair(b_r_t_VERTEX_dmn_t::dmn_size(), b_r_t_VERTEX_dmn_t::dmn_size()));
@@ -408,7 +408,6 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
   std::call_once(flag, [&]() {
 
 
-         std::cout<<"Copying data to GPU, wait........"<<std::endl;
 
 	 VectorHost_int fixed_config_b_ind;
 	 VectorHost_int fixed_config_r_ind;
@@ -527,6 +526,9 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
 			fixed_config_b_ind.ptr(), fixed_config_r_ind.ptr(), fixed_config_t_ind.ptr(), fixed_config_t_val.ptr(),
   			beta, N_div_beta);
     assert(cudaPeekAtLastError() == cudaSuccess);
+
+         std::cout<<"Copied data to GPU successfullly........"<<std::endl;
+
 
    fixed_config_b_ind.clear();
    fixed_config_r_ind.clear();
@@ -791,6 +793,11 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::compute_G_
 //  G_r_t_up_dev.setToZero(streams_[0]);
 //  G_r_t_dn_dev.setToZero(streams_[1]);
 
+   //M_matrix_up_dev.setToZero(streams_[0]);
+   //M_matrix_dn_dev.setToZero(streams_[1]);
+
+   //std::cout<<"ldM_temp up in hpp: "<<M_matrix_up_dev.leadingDimension()<<std::endl;
+   //std::cout<<"ldM_temp dn in hpp: "<<M_matrix_dn_dev.leadingDimension()<<std::endl;
 
   synchronizeStreams();
 
