@@ -252,7 +252,8 @@ void CtauxAccumulator<device_t, Parameters, Data>::initialize(int dca_iteration)
 
   MC_accumulator_data::initialize(dca_iteration);
 
-  if (dca_iteration == parameters_.get_dca_iterations() - 1 && parameters_.isAccumulatingG4())
+  if ((dca_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
+	 parameters_.isAccumulatingG4())
     perform_tp_accumulation_ = true;
 
   for (int i = 0; i < visited_expansion_order_k.size(); i++)
@@ -475,7 +476,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::sumTo(this_type& other) {
   single_particle_accumulator_obj.sumTo(other.single_particle_accumulator_obj);
 
   // equal time measurements
-  if (DCA_iteration == parameters_.get_dca_iterations() - 1 &&
+  if ((DCA_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
       parameters_.additional_time_measurements())
     equal_time_accumulator_.sumTo(other.equal_time_accumulator_);
 
