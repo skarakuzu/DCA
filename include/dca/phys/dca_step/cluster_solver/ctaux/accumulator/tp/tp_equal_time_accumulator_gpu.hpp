@@ -511,6 +511,23 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
 	}
     }
 
+
+
+  std::vector<std::vector<double>> value_r;
+  int rcluster_size = RClusterDmn::parameter_type::get_size();
+
+  VectorHost_dble r_abs_diff;
+  r_abs_diff.resizeNoCopy(rcluster_size);
+
+  std::cout<<"size of domain: "<<rcluster_size<<std::endl;
+  for (int a=0; a<rcluster_size; a++) 
+  {
+  value_r.push_back(RClusterDmn::parameter_type::get_elements()[a]);
+  std::cout<<value_r[a][0]<<" "<<value_r[a][1]<<std::endl;
+  r_abs_diff[a] = sqrt(value_r[a][0]*value_r[a][0] + value_r[a][1]*value_r[a][1]);
+  }
+
+
     const auto& sub_mat_r = RClusterDmn::parameter_type::get_subtract_matrix();
     const static double beta = beta_;
     const static double N_div_beta = sp_time_intervals_/ beta;
@@ -524,6 +541,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
                         b_r_t_VERTEX_dmn_t::dmn_size(),t_VERTEX::dmn_size(),
  			akima_coefficients_host.ptr(), 4, b::dmn_size(), s::dmn_size(), r_dmn_t::dmn_size(), shifted_t::dmn_size(),akima_coefficients.size(),
 			fixed_config_b_ind.ptr(), fixed_config_r_ind.ptr(), fixed_config_t_ind.ptr(), fixed_config_t_val.ptr(),
+			r_abs_diff.ptr(),rcluster_size,
   			beta, N_div_beta);
     assert(cudaPeekAtLastError() == cudaSuccess);
 

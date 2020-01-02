@@ -26,12 +26,13 @@ namespace ctaux {
 class TpEqTimeHelper {
 public:
 
-  static void set(const int* sub_r, int lds, int nr, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up, const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn,int  ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up,  const float* G0_original_dn, int ldG0_original_dn, int b_r_t_VERTEX_dmn_t_size,int t_VERTEX_dmn_size, const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val,  double beta, double N_div_beta);
+  static void set(const int* sub_r, int lds, int nr, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up, const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn,int  ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up,  const float* G0_original_dn, int ldG0_original_dn, int b_r_t_VERTEX_dmn_t_size,int t_VERTEX_dmn_size, const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val,  double* r_abs_diff, int cluster_size,double beta, double N_div_beta);
 
 
   __device__ inline int get_b_r_t_VERTEX_dmn_tsize() const;
   __device__ inline int get_t_VERTEX_dmn_size() const;
   __device__ inline int get_r_dmn_t_size() const;
+  __device__ inline int get_cluster_size() const;
   __device__ inline int rMinus(int r_idx, int r_idj) const;
   __device__ inline float G0_sign_up_mat(int r_idx, int r_idj) const;
   __device__ inline float G0_sign_dn_mat(int r_idx, int r_idj) const;
@@ -45,6 +46,7 @@ public:
   __device__ inline int fixed_config_r_ind(int index) const;
   __device__ inline int fixed_config_t_ind(int index) const;
   __device__ inline double fixed_config_t_val(int index) const;
+  __device__ inline double r_abs_diff(int index) const;
   __device__ inline int chi_index(int b1, int b2, int dr, int dt) const;
   __device__ inline double akima_coeff_mat(int b1, int s1, int b2, int s2, int r_ind, double delta_tau) const;
 
@@ -63,6 +65,7 @@ protected:
   int ldG0_original_up_;
   int ldG0_original_dn_;
   int size_config_;
+  int cluster_size_;
   double beta_;
   double N_div_beta_;
   unsigned akima_steps_[7];
@@ -81,6 +84,7 @@ protected:
   int* fixed_config_r_ind_;
   int* fixed_config_t_ind_;
   double* fixed_config_t_val_;
+  double* r_abs_diff_;
 };
 
 // Global instance to be used in the tp accumulation kernel.
@@ -94,6 +98,9 @@ inline __device__ int TpEqTimeHelper::get_t_VERTEX_dmn_size() const {
 }
 inline __device__ int TpEqTimeHelper::get_r_dmn_t_size() const {
   return rDmnt_;
+}
+inline __device__ int TpEqTimeHelper::get_cluster_size() const {
+  return cluster_size_;
 }
 
 inline __device__ int TpEqTimeHelper::rMinus(const int r_idx, const int r_idj) const {
@@ -147,6 +154,9 @@ inline __device__ int TpEqTimeHelper::fixed_config_t_ind(const int index) const 
 
 inline __device__ double TpEqTimeHelper::fixed_config_t_val(const int index) const {
   return fixed_config_t_val_[index];
+}
+inline __device__ double TpEqTimeHelper::r_abs_diff(const int index) const {
+  return r_abs_diff_[index];
 }
 
 inline __device__ int TpEqTimeHelper::chi_index(const int b1, const int b2, const int dr, const int dt) const {

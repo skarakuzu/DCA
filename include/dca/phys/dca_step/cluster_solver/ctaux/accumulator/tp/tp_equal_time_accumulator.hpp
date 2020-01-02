@@ -269,6 +269,7 @@ protected:
   func::function<double, r_dmn_t> dwave_r_factor;
 
   func::function<double, func::dmn_variadic<b, r_dmn_t>> dwave_pp_correlator;
+  dca::linalg::Vector<double, dca::linalg::CPU> r_abs_diff;
 };
 
 template <class parameters_type, class MOMS_type>
@@ -319,6 +320,19 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::TpEqualTimeAccu
   initialize_G0_original();
 
   //std::cout<<"In Base Equal-time Accumulator initialize_G0_original finished*****************: "<<std::endl;
+  std::vector<std::vector<double>> value_r;
+  int rcluster_size = RClusterDmn::parameter_type::get_size();
+
+  r_abs_diff.resizeNoCopy(rcluster_size);
+
+  std::cout<<"size of domain: "<<rcluster_size<<std::endl;
+  for (int a=0; a<rcluster_size; a++) 
+  {
+  value_r.push_back(RClusterDmn::parameter_type::get_elements()[a]);
+  std::cout<<value_r[a][0]<<" "<<value_r[a][1]<<std::endl;
+  r_abs_diff[a] = sqrt(value_r[a][0]*value_r[a][0] + value_r[a][1]*value_r[a][1]);
+  std::cout<<"r_abs_diff["<<a<<"]: "<<r_abs_diff[a]<<std::endl;
+  }
 
 }
 
@@ -467,10 +481,15 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::initialize
 
       delta_r = RClusterDmn::parameter_type::subtract(r_j, r_i);
 
+      //math::util::print(RClusterDmn::parameter_type::get_elements()[delta_r]);
+      //std::cout<<math::util::print(RClusterDmn::parameter_type::dual_type::get_elements()[delta_r])<<std::endl;
+
       delta_tau = t_i - t_j;
 
       G0_sign_dn(i, j) = delta_tau < 0 ? -1 : 1;
       G0_sign_up(i, j) = delta_tau < 0 ? -1 : 1;
+     
+      //std::cout<<r_j<<" "<<r_i<<" "<<delta_r<<" "<<value_r<<std::endl;//delta_tau<<" "<<G0_sign_up(i, j)<<" "<<G0_sign_dn(i, j)<<std::endl;
 
       if (std::abs(t_VERTEX::get_elements().back() - parameters.get_beta()) < 1.e-6)
         delta_tau = delta_tau < 0 ? delta_tau + t_VERTEX::dmn_size() - 1 : delta_tau;
@@ -767,8 +786,8 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
 
 template <class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate_chi(double sign){
-  int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt;
-  double upup, updn, spin_ZZ_val;
+  int b_i, b_j, r_i, r_j, t_i, t_j, dr_index, dt;
+  double upup, updn, spin_ZZ_val,dr;
   double sfactor = 0.5/((t_VERTEX::dmn_size()-1)*r_dmn_t::dmn_size());
 
   for(int j=0; j<b_r_t_VERTEX_dmn_t::dmn_size(); j++){
@@ -781,8 +800,11 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
       r_i = fixed_configuration[i].r_ind;
       t_i = fixed_configuration[i].t_ind;
 
-      dr = RClusterDmn::parameter_type::subtract(r_j, r_i);
+      dr_index = RClusterDmn::parameter_type::subtract(r_j, r_i);
+      dr = r_abs_diff[dr_index];
       dt = t_i-t_j;
+
+
 
       spin_ZZ_val = 0.0;
       // chi(beta) considered seperately later
@@ -810,7 +832,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
         updn = (1.0+G_r_t_up(i,i))*(1.0+G_r_t_dn(j,j)) + (1.0+G_r_t_dn(i,i))*(1.0+G_r_t_up(j,j));
         spin_ZZ_val += (upup - updn);
 
-        if(b_i==b_j && dr==0 && dt==0){
+        if(b_i==b_j && dr<5e-7 && dt==0){
           // correction due to cc+ = 1=c+c
 
           updn = G_r_t_up(j,j) + G_r_t_dn(j,j);

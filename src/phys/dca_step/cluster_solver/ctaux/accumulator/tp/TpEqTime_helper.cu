@@ -24,7 +24,7 @@ namespace ctaux {
 
 __device__ __constant__ TpEqTimeHelper tpeqtime_helper;
 
-void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up,  const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn, int ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up, const float* G0_original_dn, int ldG0_original_dn,  int G0dmnsize, int tVertex_dmnsize,  const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val, double beta, double N_div_beta) {
+void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up,  const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn, int ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up, const float* G0_original_dn, int ldG0_original_dn,  int G0dmnsize, int tVertex_dmnsize,  const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val, double* r_abs_diff, int cluster_size,double beta, double N_div_beta) {
 
 
   static std::once_flag flag;
@@ -43,6 +43,7 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     host_helper.ldG0_integration_factor_dn_ = ldG0_integration_factor_dn;
     host_helper.ldG0_original_up_ = ldG0_original_up;
     host_helper.ldG0_original_dn_ = ldG0_original_dn;
+    host_helper.cluster_size_ = cluster_size;
     host_helper.N_div_beta_ = N_div_beta;
     host_helper.beta_ = beta;
 
@@ -173,6 +174,9 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMemcpy(host_helper.fixed_config_t_val_, fixed_config_t_val, sizeof(double) * G0dmnsize,
                cudaMemcpyHostToDevice);
 
+    cudaMalloc(&host_helper.r_abs_diff_, sizeof(double) * cluster_size);
+    cudaMemcpy(host_helper.r_abs_diff_, r_abs_diff, sizeof(double) * cluster_size,
+               cudaMemcpyHostToDevice);
 
     cudaMemcpyToSymbol(tpeqtime_helper, &host_helper, sizeof(TpEqTimeHelper));
   });
