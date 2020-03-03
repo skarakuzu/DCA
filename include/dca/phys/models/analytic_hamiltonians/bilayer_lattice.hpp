@@ -207,6 +207,7 @@ void bilayer_lattice<point_group_type>::initialize_H_0(
   const auto t = parameters.get_t();
   const auto t_prime = parameters.get_t_prime();
   const auto t_perp = parameters.get_t_perp();
+  const auto t_perp_prime = parameters.get_t_perp();
 
   H_0 = ScalarType(0);
 
@@ -214,16 +215,18 @@ void bilayer_lattice<point_group_type>::initialize_H_0(
     const auto& k = k_vecs[k_ind];
     const auto val =
         -2. * t * (std::cos(k[0]) + std::cos(k[1])) - 4. * t_prime * std::cos(k[0]) * std::cos(k[1]);
+    const auto val2 =
+        -2. * t_perp_prime * (std::cos(k[0]) + std::cos(k[1]));
 
     H_0(0, 0, 0, 0, k_ind) = val;
     H_0(0, 1, 0, 1, k_ind) = val;
     H_0(1, 0, 1, 0, k_ind) = val;
     H_0(1, 1, 1, 1, k_ind) = val;
 
-    H_0(0, 0, 1, 0, k_ind) = -t_perp;
-    H_0(0, 1, 1, 1, k_ind) = -t_perp;
-    H_0(1, 0, 0, 0, k_ind) = -t_perp;
-    H_0(1, 1, 0, 1, k_ind) = -t_perp;
+    H_0(0, 0, 1, 0, k_ind) = -t_perp + val2;
+    H_0(0, 1, 1, 1, k_ind) = -t_perp + val2;
+    H_0(1, 0, 0, 0, k_ind) = -t_perp + val2;
+    H_0(1, 1, 0, 1, k_ind) = -t_perp + val2;
   }
 }
 

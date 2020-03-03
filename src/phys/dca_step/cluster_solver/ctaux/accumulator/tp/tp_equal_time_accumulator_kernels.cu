@@ -67,7 +67,6 @@ std::array<dim3, 2> getBlockSize(const uint i, const uint j, const uint block_si
   const uint n_blocks_i = dca::util::ceilDiv(i, n_threads_i);
   const uint n_blocks_j = dca::util::ceilDiv(j, n_threads_j);
 
-//  std::cout<<"blocs: "<<n_blocks_i<<" "<<n_blocks_j<<" "<<n_threads_i<<" "<<n_threads_j<<std::endl;
   return std::array<dim3, 2>{dim3(n_blocks_i, n_blocks_j), dim3(n_threads_i, n_threads_j)};
 }
 
@@ -92,21 +91,16 @@ __global__ void compute_G_r_t_up_Kernel(float* G0_M_G0_matrix_dev,int ldG0MG0, f
 {
 
   const int n_rows = Gdmnsize;
-  //const int n_cols = config_size;
   const int n_cols = Gdmnsize;
 
 
   const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
   const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  //if (id_i >= n_rows || id_j >= n_cols)
   if (id_i >= n_rows || id_j >= n_cols)
     return;
 
 
-  //G_r_t[id_i + id_j*ldGrt] = (G0_matrix_left_dev[id_i + id_j*ldG0_left]);
-  //G_r_t[id_i + id_j*ldGrt] = (G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
-  //G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_up_mat(id_i,id_j) * (tpeqtime_helper.G0_original_up_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
   G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_up_mat(id_i,id_j) * (tpeqtime_helper.G0_original_up_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
 
 }
@@ -115,7 +109,6 @@ template <typename ScalarType>
 __global__ void compute_G_r_t_dn_Kernel(float* G0_M_G0_matrix_dev, int ldG0MG0, float*G_r_t,int ldGrt, int Gdmnsize, float* G0_matrix_right_dev, int ldG0_right, int config_size )
 {
 
-  //const int n_rows = config_size;
   const int n_rows = Gdmnsize;
   const int n_cols = Gdmnsize;
 
@@ -123,14 +116,10 @@ __global__ void compute_G_r_t_dn_Kernel(float* G0_M_G0_matrix_dev, int ldG0MG0, 
   const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
   const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  //if (id_i >= n_rows || id_j >= n_cols)
   if (id_i >= n_rows || id_j >= n_cols)
     return;
 
 
-  //G_r_t[id_i + id_j*ldGrt] = (G0_matrix_right_dev[id_i + id_j*ldG0_right]);
-  //G_r_t[id_i + id_j*ldGrt] = (G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
-  //G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_dn_mat(id_i,id_j) *( tpeqtime_helper.G0_original_dn_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
   G_r_t[id_i + id_j*ldGrt] = tpeqtime_helper.G0_sign_dn_mat(id_i,id_j) *( tpeqtime_helper.G0_original_dn_mat(id_i,id_j) - G0_M_G0_matrix_dev[id_i + id_j*ldG0MG0]);
 
 }
@@ -148,14 +137,6 @@ __global__ void compute_G0_matrix_Kernel(int spin_index, const ScalarType* M, in
   if (id_i >= n_rows || id_j >= n_cols)
     return;
   
-// if (id_i < n_rows && id_j < n_rows) {
-
-//  M_temp[id_i + id_j*ldM_temp] = float(M[id_i + id_j*ldM]); 
-// M_temp[id_i + id_i*ldM_temp] = 1.0; 
-//if(id_i==id_j)  atomicExch(&M_temp[id_i + id_i*ldM_temp],float(1.0)); 
-
-//}
- //if (id_i < n_rows && id_j < n_rows) { M_temp[id_i + id_j*ldM_temp] = float(1.0); }
 
   int r_ind_right, r_ind_left, b_i, b_j, r_i, r_j;    //, s_i, s_j;
   ScalarType t_i, t_j, delta_tau_right, delta_tau_left;  //, scaled_tau, f_tau;
@@ -175,8 +156,8 @@ __global__ void compute_G0_matrix_Kernel(int spin_index, const ScalarType* M, in
 	r_ind_left = tpeqtime_helper.rMinus(r_i,r_j);
         delta_tau_left = t_j - t_i;
 
-       G0_matrix_right_dev[id_i + id_j*ldG0_right] = tpeqtime_helper.akima_coeff_mat(b_i, spin_index, b_j, spin_index, r_ind_right, delta_tau_right); //??
-       G0_matrix_left_dev[id_j + id_i*ldG0_left] = tpeqtime_helper.akima_coeff_mat(b_j, spin_index, b_i, spin_index, r_ind_left, delta_tau_left); //??
+       G0_matrix_right_dev[id_i + id_j*ldG0_right] = tpeqtime_helper.akima_coeff_mat(b_i, spin_index, b_j, spin_index, r_ind_right, delta_tau_right); 
+       G0_matrix_left_dev[id_j + id_i*ldG0_left] = tpeqtime_helper.akima_coeff_mat(b_j, spin_index, b_i, spin_index, r_ind_left, delta_tau_left); 
 }
 
 
@@ -245,12 +226,10 @@ void calc_G_r_t_OnDevice(int spin_index, const ScalarType* M, int ldM, float* M_
 
     cudaStreamSynchronize(stream_);
 
-   std::cout<<"ldM_temp: "<<ldM_temp<<" "<<config_size<<" "<<Gdmnsize<<std::endl;   
 */
 
     gemm_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(n_rows,n_rows, n_cols, M_temp, ldM_temp, G0_matrix_right_dev, ldG0_right, M_G0_matrix_dev, ldMG0);
     gemm_Kernel<<<blocks_left[0], blocks_left[1], 0, stream_>>>(n_rows,n_cols,n_cols,G0_matrix_left_dev, ldG0_left, M_G0_matrix_dev, ldMG0, G0_M_G0_matrix_dev, ldG0MG0);
-//    gemm_Kernel<<<blocks_left[0], blocks_left[1], 0, stream_>>>(n_rows,n_cols,n_cols,G0_matrix_left_dev, ldG0_left, G0_matrix_right_dev, ldG0_right, G0_M_G0_matrix_dev, ldG0MG0); //for test
 
     if (spin_index==1)
      compute_G_r_t_up_Kernel<ScalarType><<<blocks_left[0], blocks_left[1], 0, stream_>>>(G0_M_G0_matrix_dev, ldG0MG0, G_r_t, ldGrt, Gdmnsize, G0_matrix_left_dev, ldG0_left, config_size);
@@ -291,11 +270,7 @@ __global__ void accumulate_G_r_t_OnDevice_Kernel(const float * G_r_t_up, int ldG
   atomicAdd(&G_r_t_accumulated_squared[index_dn], dn_contribution_2);
   atomicAdd(&G_r_t_accumulated_squared[index_up], up_contribution_2);
 
-//  G_r_t_accumulated[index_dn] += sign*tpeqtime_helper.G0_integration_factor_dn_mat(id_i,id_j) * G_r_t_dn[id_i + id_j*ldGrt_dn];
-//  G_r_t_accumulated[index_up] += sign*tpeqtime_helper.G0_integration_factor_up_mat(id_i,id_j) * G_r_t_up[id_i + id_j*ldGrt_up];
 
-//  G_r_t_accumulated_squared[index_dn] += sign*tpeqtime_helper.G0_integration_factor_dn_mat(id_i,id_j) * G_r_t_dn[id_i + id_j*ldGrt_dn] * G_r_t_dn[id_i + id_j*ldGrt_dn];
-//  G_r_t_accumulated_squared[index_up] += sign*tpeqtime_helper.G0_integration_factor_up_mat(id_i,id_j) * G_r_t_up[id_i + id_j*ldGrt_up] * G_r_t_up[id_i + id_j*ldGrt_up];
 
 }
 
@@ -326,15 +301,9 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
   if (id_i >= n_rows || id_j >= n_cols)
     return;
 
-  int b_i, b_j, r_i, r_j, t_i, t_j, dr_index, dt, index, index0, indexL;
-  int endL = t_VERTEX_dmn_size-1;
+  int b_i, b_j, r_i, r_j, t_i, t_j, dr_index, dt, index, indexL;
   float upup, updn, spin_ZZ_val, spin_XX_contribution;
   double dr;
- // double XX_val, ZZ_val, ZZ_stddev;
-  //int t_VERTEX_dmn_size = tpeqtime_helper.get_t_VERTEX_dmn_size();
-  //double r_dmn_t_size = double(tpeqtime_helper.get_r_dmn_t_size());
-
-  //double sfactor = 0.5/((t_VERTEX_dmn_size-1.0)*r_dmn_t_dmn_size);
 
  
     b_j = tpeqtime_helper.fixed_config_b_ind(id_j);
@@ -366,44 +335,28 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
 
 
         if(dt==0){
-          //spin_XX_chi_accumulated[index] -= sfactor* updn*sign;
           spin_XX_contribution -= sfactor* updn*sign;
-          //atomicAdd(&spin_XX_contribution, -sfactor* updn*sign);
           spin_ZZ_val = -upup;
         } else{
-          //spin_XX_chi_accumulated[index] += sfactor* updn*sign;
           spin_XX_contribution += sfactor* updn*sign;
-          //atomicAdd(&spin_XX_contribution, sfactor* updn*sign);
           spin_ZZ_val = upup;
         }
 
         upup = (1.0+G_r_t_up[id_i+id_i*ldGrt_up])*(1.0+G_r_t_up[id_j+id_j*ldGrt_up]) + (1.0+G_r_t_dn[id_i+id_i*ldGrt_dn])*(1.0+G_r_t_dn[id_j+id_j*ldGrt_dn]);
         updn = (1.0+G_r_t_up[id_i+id_i*ldGrt_up])*(1.0+G_r_t_dn[id_j+id_j*ldGrt_dn]) + (1.0+G_r_t_dn[id_i+id_i*ldGrt_dn])*(1.0+G_r_t_up[id_j+id_j*ldGrt_up]);
         spin_ZZ_val += (upup - updn);
-        //atomicAdd(&spin_ZZ_val, (upup - updn));
 
         if(b_i==b_j && dr<5e-7 && dt==0){
           // correction due to cc+ = 1=c+c
 
           updn = G_r_t_up[id_j+id_j*ldGrt_up] + G_r_t_dn[id_j+id_j*ldGrt_dn];
-          //spin_XX_chi_accumulated[index] -= sfactor* updn*sign;
           spin_XX_contribution -= sfactor* updn*sign;
-          //atomicAdd(&spin_XX_contribution, -sfactor* updn*sign);
           spin_ZZ_val += -updn;
-          //atomicAdd(&spin_ZZ_val,-updn);
         }
         atomicAdd(&spin_XX_chi_accumulated[index],double(spin_XX_contribution));
         atomicAdd(&spin_ZZ_chi_accumulated[index], double(spin_ZZ_val * sfactor * sign));
         atomicAdd(&spin_ZZ_chi_stddev[index], double(spin_ZZ_val * spin_ZZ_val * sfactor * sign));
 
-      /*index0 = tpeqtime_helper.chi_index(b_i,b_j,dr_index,0);
-      XX_val = spin_XX_chi_accumulated[index0];
-      ZZ_val = spin_ZZ_chi_accumulated[index0];
-      ZZ_stddev = spin_ZZ_chi_stddev[index0];
-
-      spin_XX_chi_accumulated[indexL] = XX_val;
-      spin_ZZ_chi_accumulated[indexL] = ZZ_val;
-	*/
       if(dt==0)
 	{
         indexL = tpeqtime_helper.chi_index(b_i,b_j,dr_index,t_VERTEX_dmn_size-1);
@@ -414,8 +367,6 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
 	}
 
       }
-      // chi(beta) = chi(0)
-      //spin_ZZ_chi_stddev[indexL] = ZZ_stddev;
 
 
 }
@@ -429,7 +380,7 @@ void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* 
   const int n_rows = G0dmnsize;
   const int n_cols = G0dmnsize;
   auto blocks = getBlockSize(n_rows, n_cols,24);
-  //auto blocks = getBlockSize(n_rows, n_cols);
+  //auto blocks = getBlockSize(n_rows, n_cols); //not used due to too many registers
 
   double sfactor = 0.5/double(((t_VERTEX_dmn_size-1.0)*r_dmn_t_dmn_size));
 

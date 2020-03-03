@@ -43,8 +43,8 @@ namespace solver {
 namespace ctaux {
 // dca::phys::solver::ctaux::
 
-template <class parameters_type,class MOMS_type, linalg::DeviceType device = linalg::CPU> //added
-class TpEqualTimeAccumulator;                                                   //added
+template <class parameters_type,class MOMS_type, linalg::DeviceType device = linalg::CPU> 
+class TpEqualTimeAccumulator;                                                   
 
 template <class parameters_type, class MOMS_type>
 class TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU> {
@@ -70,17 +70,12 @@ public:
   using k_dmn_t = KClusterDmn;
 
   typedef func::dmn_variadic<b, r_dmn_t, t_VERTEX> b_r_t_VERTEX_dmn_t;
-  //using b_r_t_VERTEX_dmn_t = func::dmn_variadic<b, r_dmn_t, t_VERTEX>;
 
   typedef func::dmn_0<domains::time_domain_left_oriented> shifted_t;
-  //using shifted_t = func::dmn_0<domains::time_domain_left_oriented>;
   typedef func::dmn_variadic<nu, nu, r_dmn_t, shifted_t> nu_nu_r_dmn_t_shifted_t;
-  //using nu_nu_r_dmn_t_shifted_t = func::dmn_variadic<nu, nu, r_dmn_t, shifted_t>;
 
   typedef func::dmn_0<func::dmn<4, int>> akima_dmn_t;
-  //using akima_dmn_t = func::dmn_0<func::dmn<4, int>>;
   typedef func::dmn_variadic<akima_dmn_t, nu, nu, r_dmn_t, shifted_t> akima_nu_nu_r_dmn_t_shifted_t;
-  //using akima_nu_nu_r_dmn_t_shifted_t = func::dmn_variadic<akima_dmn_t, nu, nu, r_dmn_t, shifted_t>;
 
 public:
   TpEqualTimeAccumulator(parameters_type& parameters_ref, MOMS_type& MOMS_ref, int id);
@@ -307,31 +302,23 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::TpEqualTimeAccu
 
 
   initialize_my_configuration();
-  //std::cout<<"In Base Equal-time Accumulator initialize_my_configuration finished*****************: "<<std::endl;
 
   initialize_akima_coefficients();
-  //std::cout<<"In Base Equal-time Accumulator initialize_akima_coefficients finished*****************: "<<std::endl;
 
-  //for (int i=0; i<4*nu_nu_r_dmn_t_t_shifted_dmn.get_size(); i++) std::cout<<i<<" "<<akima_coefficients(i)<<std::endl;
 
   initialize_G0_indices();
-  //std::cout<<"In Base Equal-time Accumulator initialize_G0_indices finished*****************: "<<std::endl;
 
   initialize_G0_original();
 
-  //std::cout<<"In Base Equal-time Accumulator initialize_G0_original finished*****************: "<<std::endl;
   std::vector<std::vector<double>> value_r;
   int rcluster_size = RClusterDmn::parameter_type::get_size();
 
   r_abs_diff.resizeNoCopy(rcluster_size);
 
-  std::cout<<"size of domain: "<<rcluster_size<<std::endl;
   for (int a=0; a<rcluster_size; a++) 
   {
   value_r.push_back(RClusterDmn::parameter_type::get_elements()[a]);
-  std::cout<<value_r[a][0]<<" "<<value_r[a][1]<<std::endl;
   r_abs_diff[a] = sqrt(value_r[a][0]*value_r[a][0] + value_r[a][1]*value_r[a][1]);
-  std::cout<<"r_abs_diff["<<a<<"]: "<<r_abs_diff[a]<<std::endl;
   }
 
 }
@@ -589,11 +576,6 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::test_G0_or
 template <class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::finalize() {
   // util::Plot::plotLinesPoints(G_r_t_accumulated);
-/*
-  std::cout<<"G_r_t_acc: "<<G_r_t_accumulated.size()<<" "<<G_r_t_accumulated(0)<<" "<<G_r_t_accumulated(1)<<" "<<G_r_t_accumulated(2)<<" "<<G_r_t_accumulated(3)<<" "<<G_r_t_accumulated(4)<<" "<<G_r_t_accumulated(5)<<" "<<G_r_t_accumulated(6)<<" "<<G_r_t_accumulated(7)<<" "<<G_r_t_accumulated(8)<<" "<<G_r_t_accumulated(9)<<std::endl;
-
-  std::cout<<"G_r_t_acc_sq: "<<G_r_t_accumulated_squared.size()<<" "<<G_r_t_accumulated_squared(0)<<" "<<G_r_t_accumulated_squared(1)<<" "<<G_r_t_accumulated_squared(2)<<" "<<G_r_t_accumulated_squared(3)<<" "<<G_r_t_accumulated_squared(4)<<" "<<G_r_t_accumulated_squared(5)<<" "<<G_r_t_accumulated_squared(6)<<" "<<G_r_t_accumulated_squared(7)<<" "<<G_r_t_accumulated_squared(8)<<" "<<G_r_t_accumulated_squared(9)<<std::endl;
-*/
   for (int l = 0; l < G_r_t_accumulated_squared.size(); l++)
     G_r_t_accumulated_squared(l) =
         std::sqrt(std::abs(G_r_t_accumulated_squared(l) - std::pow(G_r_t_accumulated(l), 2)));
@@ -722,48 +704,28 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::compute_G_
     compute_G0_matrix_right(e_UP, configuration_e_up, G0_matrix_up_right);
   }
 
-   //	std::cout<<"G0_up_left: "<<" "<<G0_matrix_up_left(0,0)<<" "<<G0_matrix_up_left(0,1)<<" "<<G0_matrix_up_left(1,0)<<" "<<G0_matrix_up_left(2,3)<<" "<<G0_matrix_up_left(3,2)<<std::endl;
-   //	std::cout<<"G0_dn_left: "<<" "<<G0_matrix_dn_left(0,0)<<" "<<G0_matrix_dn_left(0,1)<<" "<<G0_matrix_dn_left(1,0)<<" "<<G0_matrix_dn_left(2,3)<<" "<<G0_matrix_dn_left(3,2)<<std::endl;
 
   {
     dca::linalg::matrixop::gemm(M_matrix_dn, G0_matrix_dn_right, M_G0_matrix_dn);
     dca::linalg::matrixop::gemm(M_matrix_up, G0_matrix_up_right, M_G0_matrix_up);
-   //	std::cout<<"MG0_up: "<<" "<<M_G0_matrix_up(0,0)<<" "<<M_G0_matrix_up(0,1)<<" "<<M_G0_matrix_up(1,0)<<" "<<M_G0_matrix_up(2,3)<<" "<<M_G0_matrix_up(3,2)<<std::endl;
-   //	std::cout<<"MG0_dn: "<<" "<<M_G0_matrix_dn(0,0)<<" "<<M_G0_matrix_dn(0,1)<<" "<<M_G0_matrix_dn(1,0)<<" "<<M_G0_matrix_dn(2,3)<<" "<<M_G0_matrix_dn(3,2)<<std::endl;
 
     dca::linalg::matrixop::gemm(G0_matrix_dn_left, M_G0_matrix_dn, G0_M_G0_matrix_dn);
     dca::linalg::matrixop::gemm(G0_matrix_up_left, M_G0_matrix_up, G0_M_G0_matrix_up);
   }
-   //	std::cout<<"G0MG0_up: "<<" "<<G0_M_G0_matrix_up(0,0)<<" "<<G0_M_G0_matrix_up(0,1)<<" "<<G0_M_G0_matrix_up(1,0)<<" "<<G0_M_G0_matrix_up(2,3)<<" "<<G0_M_G0_matrix_up(3,2)<<" "<<G0_M_G0_matrix_up(G0_M_G0_matrix_up.size().first-1,G0_M_G0_matrix_up.size().second-1)<<std::endl;
-   //	std::cout<<"G0MG0_dn: "<<" "<<G0_M_G0_matrix_dn(0,0)<<" "<<G0_M_G0_matrix_dn(0,1)<<" "<<G0_M_G0_matrix_dn(1,0)<<" "<<G0_M_G0_matrix_dn(2,3)<<" "<<G0_M_G0_matrix_dn(3,2)<<" "<<G0_M_G0_matrix_dn(G0_M_G0_matrix_dn.size().first-1,G0_M_G0_matrix_dn.size().second-1)<<std::endl;
 
   {
-    //int configuration_size_dn = find_first_non_interacting_spin(configuration_e_dn);
-    //int configuration_size_up = find_first_non_interacting_spin(configuration_e_dn);
 
     for (int j = 0; j < G0_M_G0_matrix_dn.size().second; j++){
       for (int i = 0; i < G0_M_G0_matrix_dn.size().first; i++){
-	/*if (i< configuration_size_dn)
-        G_r_t_dn(i, j) = G0_matrix_dn_right(i,j);
-	else
-        G_r_t_dn(i, j) = 0.0;*/
-        //G_r_t_dn(i, j) = (G0_M_G0_matrix_dn(i, j));
         G_r_t_dn(i, j) = G0_sign_dn(i, j) * (G0_original_dn(i, j) - G0_M_G0_matrix_dn(i, j));
 	}
 	}
     for (int j = 0; j < G0_M_G0_matrix_up.size().second; j++){
       for (int i = 0; i < G0_M_G0_matrix_up.size().first; i++){
-	/*if (j< configuration_size_up)
-        G_r_t_up(i, j) = G0_matrix_dn_left(i,j);
-	else
-        G_r_t_up(i, j) = 0;*/
-        //G_r_t_up(i, j) = (G0_M_G0_matrix_up(i, j));
         G_r_t_up(i, j) = G0_sign_up(i, j) * (G0_original_up(i, j) - G0_M_G0_matrix_up(i, j));
         }
 	}
   }
-   //	std::cout<<"G_r_t_up: "<<G_r_t_up(0,0)<<" "<<G_r_t_up(0,1)<<" "<<G_r_t_up(1,2)<<" "<<G_r_t_up(G0_M_G0_matrix_up.size().first-1,G0_M_G0_matrix_up.size().second-1)<<std::endl;
-   //	std::cout<<"G_r_t_dn: "<<G_r_t_dn(0,0)<<" "<<G_r_t_dn(0,1)<<" "<<G_r_t_dn(1,2)<<" "<<G_r_t_dn(G0_M_G0_matrix_dn.size().first-1,G0_M_G0_matrix_dn.size().second-1)<<std::endl;
 }
 
 template <class parameters_type, class MOMS_type>
@@ -819,10 +781,10 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
         updn = G_r_t_dn(i,j)*G_r_t_up(j,i) + G_r_t_up(i,j)*G_r_t_dn(j,i);
 
         if(dt==0){
-          spin_XX_chi_accumulated(b_i,b_j,dr,dt) -= sfactor* updn*sign;
+          spin_XX_chi_accumulated(b_i,b_j,dr_index,dt) -= sfactor* updn*sign;
           spin_ZZ_val = -upup;
         } else{
-          spin_XX_chi_accumulated(b_i,b_j,dr,dt) += sfactor* updn*sign;
+          spin_XX_chi_accumulated(b_i,b_j,dr_index,dt) += sfactor* updn*sign;
           spin_ZZ_val = upup;
         }
         // disconnected diagrams:
@@ -836,16 +798,16 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
           // correction due to cc+ = 1=c+c
 
           updn = G_r_t_up(j,j) + G_r_t_dn(j,j);
-          spin_XX_chi_accumulated(b_i,b_j,dr,dt) -= sfactor* updn*sign;
+          spin_XX_chi_accumulated(b_i,b_j,dr_index,dt) -= sfactor* updn*sign;
           spin_ZZ_val += -updn;
         }
-        spin_ZZ_chi_accumulated(b_i,b_j,dr,dt) += spin_ZZ_val * sfactor * sign;
-        spin_ZZ_chi_stddev(b_i,b_j,dr,dt) += spin_ZZ_val * spin_ZZ_val * sfactor * sign;
+        spin_ZZ_chi_accumulated(b_i,b_j,dr_index,dt) += spin_ZZ_val * sfactor * sign;
+        spin_ZZ_chi_stddev(b_i,b_j,dr_index,dt) += spin_ZZ_val * spin_ZZ_val * sfactor * sign;
       }
       // chi(beta) = chi(0)
-      spin_XX_chi_accumulated(b_i,b_j,dr,t_VERTEX::dmn_size()-1) = spin_XX_chi_accumulated(b_i,b_j,dr,0);
-      spin_ZZ_chi_accumulated(b_i,b_j,dr,t_VERTEX::dmn_size()-1) = spin_ZZ_chi_accumulated(b_i,b_j,dr,0);
-      spin_ZZ_chi_stddev(b_i,b_j,dr,t_VERTEX::dmn_size()-1) = spin_ZZ_chi_stddev(b_i,b_j,dr,0);
+      spin_XX_chi_accumulated(b_i,b_j,dr_index,t_VERTEX::dmn_size()-1) = spin_XX_chi_accumulated(b_i,b_j,dr_index,0);
+      spin_ZZ_chi_accumulated(b_i,b_j,dr_index,t_VERTEX::dmn_size()-1) = spin_ZZ_chi_accumulated(b_i,b_j,dr_index,0);
+      spin_ZZ_chi_stddev(b_i,b_j,dr_index,t_VERTEX::dmn_size()-1) = spin_ZZ_chi_stddev(b_i,b_j,dr_index,0);
     }
   }
 
@@ -1062,12 +1024,9 @@ inline double TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::i
 
   double* a_ptr = &akima_coefficients(linind);
 
-//  std::cout<<"linind/4: "<<b_i<<" "<<s_i<<" "<<b_j<<" "<<s_j<<" "<<delta_r<<" "<<t_ind<<" "<<nu_nu_r_dmn_t_t_shifted_dmn(b_i, s_i, b_j, s_j, delta_r, t_ind)<<" "<<akm_nunur_dmn_shifted_t(0, b_i, s_i, b_j, s_j, delta_r, t_ind)<<" "<<akm_nunur_dmn_shifted_t(1, b_i, s_i, b_j, s_j,  delta_r, t_ind)<<std::endl;
 
   double result = (a_ptr[0] + delta_tau * (a_ptr[1] + delta_tau * (a_ptr[2] + delta_tau * a_ptr[3])));
 
-  //double result = b_i+s_i+b_j+s_j+delta_r+t_ind;
-  //double result = akima_coefficients(linind);
 
   return result;
 
@@ -1085,12 +1044,6 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
   accumulate_G_r_t(sign);
 
   accumulate_chi(sign);
-
-
-  // 	std::cout<<"G_r_t_up: "<<G0_M_G0_matrix_up.size().first-1<<" "<<G0_M_G0_matrix_up.size().second-1<<" "<<G_r_t_up(0,0)<<" "<<G_r_t_up(0,1)<<" "<<G_r_t_up(1,2)<<" "<<G_r_t_up(G0_M_G0_matrix_up.size().first-1,G0_M_G0_matrix_up.size().second-1)<<std::endl;
- //	std::cout<<"G_r_t_dn: "<<G0_M_G0_matrix_dn.size().first-1<<" "<<G0_M_G0_matrix_dn.size().second-1<<" "<<G_r_t_dn(0,0)<<" "<<G_r_t_dn(0,1)<<" "<<G_r_t_dn(1,2)<<" "<<G_r_t_up(G0_M_G0_matrix_dn.size().first-1,G0_M_G0_matrix_dn.size().second-1)<<std::endl;
-
-  //std::cout<<"G_r_t_acc: "<<G_r_t_accumulated.size()<<" "<<G_r_t_accumulated(0)<<" "<<G_r_t_accumulated(1)<<" "<<G_r_t_accumulated(2)<<" "<<G_r_t_accumulated(3)<<" "<<G_r_t_accumulated(4)<<" "<<G_r_t_accumulated(5)<<" "<<G_r_t_accumulated(6)<<" "<<G_r_t_accumulated(7)<<" "<<G_r_t_accumulated(8)<<" "<<G_r_t_accumulated(9)<<std::endl;
 
 
 //  accumulate_moments(sign);

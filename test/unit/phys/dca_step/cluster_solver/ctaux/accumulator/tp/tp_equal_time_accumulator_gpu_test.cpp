@@ -51,14 +51,10 @@ TEST_F(TpEqualTimeAccumulatorGpuTest, AccumulateAndSum) {
 
   accumulator1.resetAccumulation();
   accumulator1.accumulateAll(config[0], M[0], config[1], M[1], sign);
-  //accumulator1.sumTo(accumulator_sum_cpu);
-  //accumulator_sum_cpu.finalize();
   accumulator1.finalize();
 
   accumulator2.resetAccumulation();
   accumulator2.accumulateAll(config[0], M[0], config[1], M[1], sign);
-  //accumulator2.sumTo(accumulator_sum_gpu);
-  //accumulator_sum_gpu.finalize();
   accumulator2.finalize();
 
   auto expect_near = [](const auto& f1, const auto f2) {
