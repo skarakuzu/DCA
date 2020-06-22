@@ -207,6 +207,7 @@ private:
 
   double GFLOP;
  
+  int dwave_config_size;
   constexpr static int n_bands_ = parameters_type::model_type::BANDS;
  
   std::array<int, 2> streams_id_;
@@ -305,6 +306,7 @@ private:
   dca::linalg::Vector<double, dca::linalg::GPU> spin_ZZ_chi_accumulated_dev;
   dca::linalg::Vector<double, dca::linalg::GPU> spin_ZZ_chi_stddev_dev;
   dca::linalg::Vector<double, dca::linalg::GPU> spin_XX_chi_accumulated_dev;
+  dca::linalg::Vector<double, dca::linalg::GPU> dwave_pp_correlator_dev;
  
 
 
@@ -349,6 +351,8 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::TpEqualTimeAccu
   assert(cudaPeekAtLastError() == cudaSuccess);
   spin_XX_chi_accumulated_dev.resizeNoCopy(b::dmn_size()*b::dmn_size()*r_dmn_t::dmn_size()*t_VERTEX::dmn_size());
   assert(cudaPeekAtLastError() == cudaSuccess);
+  dwave_pp_correlator_dev.resizeNoCopy(b::dmn_size()*r_dmn_t::dmn_size());
+  assert(cudaPeekAtLastError() == cudaSuccess);
 
 
 }
@@ -370,6 +374,7 @@ template <class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize_TpEqTime_helper()  {
 
         
+ dwave_config_size=b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size();
 
   static std::once_flag flag;
   std::call_once(flag, [&]() {
@@ -400,6 +405,52 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
       }
     }
   }
+	//copy for d-wave calculations
+	
+	 VectorHost_int dwave_config_r_i;
+	 VectorHost_int dwave_config_r_j;
+	 VectorHost_int dwave_config_r_l;
+	 VectorHost_int dwave_config_b_i;
+	 VectorHost_int dwave_config_b_j;
+	 VectorHost_int dwave_config_b_l;
+
+         dwave_config_r_i.resizeNoCopy(b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size());
+         dwave_config_r_j.resizeNoCopy(b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size());
+         dwave_config_r_l.resizeNoCopy(b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size());
+         dwave_config_b_i.resizeNoCopy(b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size());
+         dwave_config_b_j.resizeNoCopy(b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size());
+         dwave_config_b_l.resizeNoCopy(b::dmn_size() * b::dmn_size() * b::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size() * r_dmn_t::dmn_size());
+
+
+index = 0;
+  for (int r_i = 0; r_i < r_dmn_t::dmn_size(); r_i++) {
+    for (int r_j = 0; r_j < r_dmn_t::dmn_size(); r_j++) {
+      for (int r_l = 0; r_l < r_dmn_t::dmn_size(); r_l++) {
+          for (int b_i = 0; b_i < b::dmn_size(); b_i++) {
+            for (int b_j = 0; b_j < b::dmn_size(); b_j++) {
+              for (int b_l = 0; b_l < b::dmn_size(); b_l++) {
+		
+		dwave_config_r_i[index] = r_i;
+		dwave_config_r_j[index] = r_j;
+		dwave_config_r_l[index] = r_l;
+		dwave_config_b_i[index] = b_i;
+		dwave_config_b_j[index] = b_j;
+		dwave_config_b_l[index] = b_l;
+
+		index += 1;
+		}
+	     }
+	  }
+	}
+    }
+ }
+	 VectorHost_dble dwave_r_factor_host;
+	 dwave_r_factor_host.resizeNoCopy(r_dmn_t::dmn_size());
+  	
+	 for (int r_i = 0; r_i < r_dmn_t::dmn_size(); r_i++) {
+	 dwave_r_factor_host[r_i] = dwave_r_factor(r_i);
+	 }
+
 
 	 VectorHost_dble akima_coefficients_host;
 	 MatrixHost_flt G0_sign_up_host;
@@ -470,11 +521,11 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
   VectorHost_dble r_abs_diff;
   r_abs_diff.resizeNoCopy(rcluster_size);
 
-  std::cout<<"size of domain: "<<rcluster_size<<std::endl;
+//  std::cout<<"size of domain: "<<rcluster_size<<std::endl;
   for (int a=0; a<rcluster_size; a++) 
   {
   value_r.push_back(RClusterDmn::parameter_type::get_elements()[a]);
-  std::cout<<value_r[a][0]<<" "<<value_r[a][1]<<std::endl;
+//  std::cout<<value_r[a][0]<<" "<<value_r[a][1]<<std::endl;
   r_abs_diff[a] = sqrt(value_r[a][0]*value_r[a][0] + value_r[a][1]*value_r[a][1]);
   }
 
@@ -493,7 +544,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::initialize
  			akima_coefficients_host.ptr(), 4, b::dmn_size(), s::dmn_size(), r_dmn_t::dmn_size(), shifted_t::dmn_size(),akima_coefficients.size(),
 			fixed_config_b_ind.ptr(), fixed_config_r_ind.ptr(), fixed_config_t_ind.ptr(), fixed_config_t_val.ptr(),
 			r_abs_diff.ptr(),rcluster_size,
-  			beta, N_div_beta);
+  			beta, N_div_beta,dwave_config_r_i.ptr(),dwave_config_r_j.ptr(),dwave_config_r_l.ptr(),dwave_config_b_i.ptr(),dwave_config_b_j.ptr(),dwave_config_b_l.ptr(),dwave_config_size, dwave_r_factor_host.ptr());
     assert(cudaPeekAtLastError() == cudaSuccess);
 
          std::cout<<"Copied data to GPU successfullly........"<<std::endl;
@@ -536,6 +587,9 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::resetAccum
   assert(cudaPeekAtLastError() == cudaSuccess);
 
   spin_XX_chi_accumulated_dev.setToZeroAsync(streams_[0]);
+  assert(cudaPeekAtLastError() == cudaSuccess);
+
+  dwave_pp_correlator_dev.setToZeroAsync(streams_[1]);
   assert(cudaPeekAtLastError() == cudaSuccess);
 
 
@@ -621,6 +675,9 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::finalize()
              cudaMemcpyDeviceToHost);
 
   cudaMemcpy(spin_XX_chi_accumulated.values(), spin_XX_chi_accumulated_dev.ptr(), spin_XX_chi_accumulated.size()* sizeof(double), 
+             cudaMemcpyDeviceToHost);
+
+  cudaMemcpy(dwave_pp_correlator.values(), dwave_pp_correlator_dev.ptr(), dwave_pp_correlator.size()* sizeof(double), 
              cudaMemcpyDeviceToHost);
 
 
@@ -803,6 +860,8 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate
   accumulate_chi_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,spin_ZZ_chi_accumulated_dev.ptr(),  spin_ZZ_chi_stddev_dev.ptr(), spin_XX_chi_accumulated_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), r_dmn_t::dmn_size() ,t_VERTEX::dmn_size(), streams_[1]);
   assert(cudaPeekAtLastError() == cudaSuccess);
 
+  accumulate_dwave_pp_correlator_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,dwave_pp_correlator_dev.ptr(), t_VERTEX::dmn_size(), r_dmn_t::dmn_size(), dwave_config_size, streams_[0]);
+  assert(cudaPeekAtLastError() == cudaSuccess);
 //  accumulate_moments(sign);
 
 //  accumulate_dwave_pp_correlator(sign);
@@ -852,6 +911,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::sumTo(this
   sum_OnDevice(spin_ZZ_chi_accumulated_dev.ptr(), other.spin_ZZ_chi_accumulated_dev.ptr(), spin_ZZ_chi_accumulated_dev.size(),streams_[0]);
   sum_OnDevice(spin_ZZ_chi_stddev_dev.ptr(), other.spin_ZZ_chi_stddev_dev.ptr(), spin_ZZ_chi_stddev_dev.size(),streams_[1]);
   sum_OnDevice(spin_XX_chi_accumulated_dev.ptr(), other.spin_XX_chi_accumulated_dev.ptr(), spin_XX_chi_accumulated_dev.size(),streams_[0]);
+  sum_OnDevice(dwave_pp_correlator_dev.ptr(), other.dwave_pp_correlator_dev.ptr(), dwave_pp_correlator_dev.size(),streams_[1]);
 
   synchronizeStreams();
 

@@ -27,6 +27,7 @@ TEST(ModelParametersBilayerHubbardTest, DefaultValues) {
   EXPECT_EQ(0., pars.get_t());
   EXPECT_EQ(0., pars.get_t_prime());
   EXPECT_EQ(0., pars.get_t_perp());
+  EXPECT_EQ(0., pars.get_t_perp_prime());
   EXPECT_EQ(0., pars.get_U());
   EXPECT_EQ(0., pars.get_V());
   EXPECT_EQ(0., pars.get_V_prime());
@@ -47,6 +48,7 @@ TEST(ModelParametersBilayerHubbardTest, ReadAll) {
   EXPECT_EQ(1., pars.get_t());
   EXPECT_EQ(0.5, pars.get_t_prime());
   EXPECT_EQ(0.2, pars.get_t_perp());
+  EXPECT_EQ(0.0, pars.get_t_perp_prime());
   EXPECT_EQ(8., pars.get_U());
   EXPECT_EQ(2., pars.get_V());
   EXPECT_EQ(2., pars.get_V_prime());

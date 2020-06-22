@@ -12,7 +12,7 @@
 template <typename PointGroup>
 class ModelParameters<models::TightBindingModel<models::HundLattice<PointGroup>>> {
 public:
-  ModelParameters() : t_(1.), t_prime_(0.), t_perp_(0.), U_(4.), V_(0.), V_prime_(0.) {}
+  ModelParameters() : t_(1.), t_prime_(0.), t_perp_(0.), t_perp_prime_(0.), U_(4.), V_(0.), V_prime_(0.) {}
 
   template <typename Concurrency>
   int getBufferSize(const Concurrency& concurrency) const;
@@ -43,6 +43,12 @@ public:
   }
   void set_t_perp(const double t_perp) {
     t_perp_ = t_perp;
+  }
+  double get_t_perp_prime() const {
+    return t_perp_prime_;
+  }
+  void set_t_perp_prime(const double t_perp_prime) {
+    t_perp_prime_ = t_perp_prime;
   }
 
   double get_U() const {
@@ -77,6 +83,7 @@ private:
   double t_ = 1.;
   double t_prime_ = 0.;
   double t_perp_ = 0.;
+  double t_perp_prime_ = 0.;
   double U_ = 0.;
   double V_ = 0.;
   double V_prime_ = 0.;
@@ -92,6 +99,7 @@ int ModelParameters<models::TightBindingModel<models::HundLattice<PointGroup>>>:
   buffer_size += concurrency.get_buffer_size(t_);
   buffer_size += concurrency.get_buffer_size(t_prime_);
   buffer_size += concurrency.get_buffer_size(t_perp_);
+  buffer_size += concurrency.get_buffer_size(t_perp_prime_);
   buffer_size += concurrency.get_buffer_size(U_);
   buffer_size += concurrency.get_buffer_size(V_);
   buffer_size += concurrency.get_buffer_size(V_prime_);
@@ -107,6 +115,7 @@ void ModelParameters<models::TightBindingModel<models::HundLattice<PointGroup>>>
   concurrency.pack(buffer, buffer_size, position, t_);
   concurrency.pack(buffer, buffer_size, position, t_prime_);
   concurrency.pack(buffer, buffer_size, position, t_perp_);
+  concurrency.pack(buffer, buffer_size, position, t_perp_prime_);
   concurrency.pack(buffer, buffer_size, position, U_);
   concurrency.pack(buffer, buffer_size, position, V_);
   concurrency.pack(buffer, buffer_size, position, V_prime_);
@@ -120,6 +129,7 @@ void ModelParameters<models::TightBindingModel<models::HundLattice<PointGroup>>>
   concurrency.unpack(buffer, buffer_size, position, t_);
   concurrency.unpack(buffer, buffer_size, position, t_prime_);
   concurrency.unpack(buffer, buffer_size, position, t_perp_);
+  concurrency.unpack(buffer, buffer_size, position, t_perp_prime_);
   concurrency.unpack(buffer, buffer_size, position, U_);
   concurrency.unpack(buffer, buffer_size, position, V_);
   concurrency.unpack(buffer, buffer_size, position, V_prime_);
@@ -143,6 +153,7 @@ void ModelParameters<models::TightBindingModel<models::HundLattice<PointGroup>>>
     tryToRead("t", t_);
     tryToRead("t-prime", t_prime_);
     tryToRead("t-perp", t_perp_);
+    tryToRead("t-perp-prime", t_perp_prime_);
     tryToRead("U", U_);
     tryToRead("V", V_);
     tryToRead("V-prime", V_prime_);
@@ -161,6 +172,7 @@ void ModelParameters<models::TightBindingModel<models::HundLattice<PointGroup>>>
               << "\t\t t  : " << t_ << "\n"
               << "\t\t t' : " << t_prime_ << "\n"
               << "\t\t tz : " << t_perp_ << "\n"
+              << "\t\t tz : " << t_perp_prime_ << "\n"
               << "\t\t U  : " << U_ << "\n"
               << "\t\t V  : " << V_ << "\n"
               << "\t\t V' : " << V_prime_ << "\n"

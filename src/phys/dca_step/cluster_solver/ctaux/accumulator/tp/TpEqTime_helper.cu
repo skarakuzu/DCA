@@ -24,7 +24,7 @@ namespace ctaux {
 
 __device__ __constant__ TpEqTimeHelper tpeqtime_helper;
 
-void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up,  const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn, int ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up, const float* G0_original_dn, int ldG0_original_dn,  int G0dmnsize, int tVertex_dmnsize,  const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val, double* r_abs_diff, int cluster_size,double beta, double N_div_beta) {
+void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up,  const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn, int ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up, const float* G0_original_dn, int ldG0_original_dn,  int G0dmnsize, int tVertex_dmnsize,  const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val, double* r_abs_diff, int cluster_size,double beta, double N_div_beta, int* dwave_config_r_i, int* dwave_config_r_j, int* dwave_config_r_l, int* dwave_config_b_i, int* dwave_config_b_j, int* dwave_config_b_l, int dwave_config_size, double* dwave_r_factor) {
 
 
   static std::once_flag flag;
@@ -34,6 +34,7 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     host_helper.bVrtxdmn_ = G0dmnsize;
     host_helper.tVrtxdmn_ = tVertex_dmnsize;
     host_helper.rDmnt_ = nr_akm;
+    host_helper.dwave_config_size_ = dwave_config_size;
     host_helper.lds_ = lds;
     host_helper.ldG0_indices_up_ = ldG0_indices_up;
     host_helper.ldG0_indices_dn_ = ldG0_indices_dn;
@@ -83,6 +84,17 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
 
     std::copy_n(steps2.data(), steps2.size(), host_helper.chi_steps_);
 
+    const std::array<int, 3> brt_dmn_sizes{nb_akm,
+				  nr_akm,	
+				  tVertex_dmnsize};
+
+    std::array<int, 3> steps3;
+    steps3[0] = 1;
+    for (std::size_t i = 1; i < steps3.size(); ++i)
+      steps3[i] = steps3[i - 1] * brt_dmn_sizes[i - 1];
+
+
+    std::copy_n(steps3.data(), steps3.size(), host_helper.brt_dmn_steps_);
 
     cudaMalloc(&host_helper.sub_matrix_, sizeof(int) * lds * nr_sub);
     cudaMemcpy(host_helper.sub_matrix_, sub_r, sizeof(int) * lds * nr_sub, cudaMemcpyHostToDevice);
@@ -177,6 +189,35 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMalloc(&host_helper.r_abs_diff_, sizeof(double) * cluster_size);
     cudaMemcpy(host_helper.r_abs_diff_, r_abs_diff, sizeof(double) * cluster_size,
                cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_r_i_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_r_i_, dwave_config_r_i, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_r_j_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_r_j_, dwave_config_r_j, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_r_l_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_r_l_, dwave_config_r_l, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_b_i_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_b_i_, dwave_config_b_i, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_b_j_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_b_j_, dwave_config_b_j, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_b_l_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_b_l_, dwave_config_b_l, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_r_factor_, sizeof(double) * nr_akm);
+    cudaMemcpy(host_helper.dwave_r_factor_, dwave_r_factor, sizeof(double) * nr_akm,
+               cudaMemcpyHostToDevice);
+
 
     cudaMemcpyToSymbol(tpeqtime_helper, &host_helper, sizeof(TpEqTimeHelper));
   });

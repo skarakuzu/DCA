@@ -180,6 +180,7 @@ protected:
     double t_val;
   };
 
+
 protected:
   parameters_type& parameters;
   concurrency_type& concurrency;
@@ -372,7 +373,10 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::initialize
       }
     }
   }
+
+
 }
+
 
 template <class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::initialize_akima_coefficients() {
@@ -1045,10 +1049,10 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
 
   accumulate_chi(sign);
 
+  accumulate_dwave_pp_correlator(sign);
 
 //  accumulate_moments(sign);
 
-//  accumulate_dwave_pp_correlator(sign);
 }
 
 template <class parameters_type, class MOMS_type>

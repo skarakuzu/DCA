@@ -207,7 +207,9 @@ void bilayer_lattice<point_group_type>::initialize_H_0(
   const auto t = parameters.get_t();
   const auto t_prime = parameters.get_t_prime();
   const auto t_perp = parameters.get_t_perp();
-  const auto t_perp_prime = parameters.get_t_perp();
+  const auto t_perp_prime = parameters.get_t_perp_prime();
+
+//  std::cout<<"t_perp_prime: "<<t_perp_prime<<std::endl;
 
   H_0 = ScalarType(0);
 

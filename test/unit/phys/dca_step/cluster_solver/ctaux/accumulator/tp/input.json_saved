@@ -23,7 +23,7 @@
 
     "imaginary-time": {
       "sp-time-intervals": 128,
-      "time-intervals-for-time-measurements" : 16
+      "time-intervals-for-time-measurements" : 8
     },
 
     "imaginary-frequency": {
