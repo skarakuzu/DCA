@@ -547,7 +547,7 @@ index = 0;
   			beta, N_div_beta,dwave_config_r_i.ptr(),dwave_config_r_j.ptr(),dwave_config_r_l.ptr(),dwave_config_b_i.ptr(),dwave_config_b_j.ptr(),dwave_config_b_l.ptr(),dwave_config_size, dwave_r_factor_host.ptr());
     assert(cudaPeekAtLastError() == cudaSuccess);
 
-         std::cout<<"Copied data to GPU successfullly........"<<std::endl;
+//         std::cout<<"Copied data to GPU successfullly........"<<std::endl;
 
 
    fixed_config_b_ind.clear();
