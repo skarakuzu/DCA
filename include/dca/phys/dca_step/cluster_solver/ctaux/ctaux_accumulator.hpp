@@ -135,7 +135,7 @@ public:
   func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_magnetic_cluster_moment() {
     return equal_time_accumulator_.get_magnetic_cluster_moment();
   }
-  func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_dwave_pp_correlator() {
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_dwave_pp_correlator() {
     return equal_time_accumulator_.get_dwave_pp_correlator();
   }
 

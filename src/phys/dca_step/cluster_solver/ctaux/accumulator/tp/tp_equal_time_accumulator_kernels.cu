@@ -390,68 +390,89 @@ void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* 
 
 
 template <typename ScalarType>
-__global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* dwave_pp_correlator, int t_VERTEX_dmn_size, double factor)
+__global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* dwave_pp_correlator)
 {
 
-  const int n_rows = tpeqtime_helper.get_dwave_config_size();;
-  const int n_cols = t_VERTEX_dmn_size;
-
+  const int n_dim1 = tpeqtime_helper.get_b_r_t_VERTEX_dmn_tsize();
+  const int n_dim2 = tpeqtime_helper.get_b_r_t_VERTEX_dmn_tsize();
+  const int n_dim3 = tpeqtime_helper.get_dwave_config_size();
+  int t_VERTEX_dmn_size = tpeqtime_helper.get_t_VERTEX_dmn_size();
 
   const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
   const int id_j = blockIdx.y * blockDim.y + threadIdx.y;
-   
-  if (id_i >= n_rows || id_j >= n_cols)
+  const int id_z = blockIdx.z * blockDim.z + threadIdx.z;
+  if (id_i >= n_dim1 || id_j >= n_dim2 || id_z >= n_dim3)
     return;
 
-  int r_i, r_j, r_l, b_i, b_j, b_l, l_minus_i, l_minus_j, i, j, l, index;
-  double value;
+  int b_i, b_j, r_i, r_j, t_i, t_j, dr_index, dt, index;
+  int r_l, r_lp, b_l, b_lp, l, lp, i_minus_l, j_minus_lp;
+  double term;
+
  
-      r_i = tpeqtime_helper.dwave_config_r_i(id_i);
-      r_j = tpeqtime_helper.dwave_config_r_j(id_i);
-      r_l = tpeqtime_helper.dwave_config_r_l(id_i);
+    b_j = tpeqtime_helper.fixed_config_b_ind(id_j);
+    r_j = tpeqtime_helper.fixed_config_r_ind(id_j);
+    t_j = tpeqtime_helper.fixed_config_t_ind(id_j);
 
-      b_i = tpeqtime_helper.dwave_config_b_i(id_i);
-      b_j = tpeqtime_helper.dwave_config_b_j(id_i);
-      b_l = tpeqtime_helper.dwave_config_b_l(id_i);
 
-        l_minus_i = tpeqtime_helper.rMinus(r_i, r_l);
-        l_minus_j = tpeqtime_helper.rMinus(r_j, r_l);
+      b_i = tpeqtime_helper.fixed_config_b_ind(id_i);
+      r_i = tpeqtime_helper.fixed_config_r_ind(id_i);
+      t_i = tpeqtime_helper.fixed_config_t_ind(id_i);
 
-        double struct_factor = tpeqtime_helper.dwave_r_factor(l_minus_i) * tpeqtime_helper.dwave_r_factor(l_minus_j);
+
+      dr_index = tpeqtime_helper.rMinus(r_j,r_i);
+      dt = t_i-t_j;
+
+      dt = dt<0 ? dt+t_VERTEX_dmn_size-1 : dt;
+
+        r_l = tpeqtime_helper.dwave_config_r_l(id_z);
+        r_lp = tpeqtime_helper.dwave_config_r_lp(id_z);
+
+        b_l = tpeqtime_helper.dwave_config_b_l(id_z);
+        b_lp = tpeqtime_helper.dwave_config_b_lp(id_z);
+
+        i_minus_l = tpeqtime_helper.rMinus(r_l, r_i);
+        j_minus_lp = tpeqtime_helper.rMinus(r_lp, r_j);
+
+        double struct_factor = tpeqtime_helper.dwave_r_factor(i_minus_l) * tpeqtime_helper.dwave_r_factor(j_minus_lp);
+ 	double factor = sign*tpeqtime_helper.G0_integration_factor_up_mat(id_i,id_j);
+	term = 0.0;	
 
         if (std::abs(struct_factor) > 1.e-6) {
 
-	i = tpeqtime_helper.brt_dmn_index(b_i,r_i,id_j);
-	j = tpeqtime_helper.brt_dmn_index(b_j,r_j,id_j);
-	l = tpeqtime_helper.brt_dmn_index(b_l,r_l,id_j);
+	l = tpeqtime_helper.brt_dmn_index(b_l,r_l,t_i);
+	lp = tpeqtime_helper.brt_dmn_index(b_lp,r_lp,t_j);
 
-                  double d_ij = i == j ? 1 : 0;
-                  double d_il = i == l ? 1 : 0;
-                  double d_lj = l == j ? 1 : 0;
-                  double d_ll = 1;  // l==l? 1 : 0;
+                double d_ij  = id_i == id_j  ? 1 : 0;
+                double d_llp = l == lp ? 1 : 0;
+                double d_ilp = id_i == lp  ? 1 : 0;
+                double d_lj  = l == id_j  ? 1 : 0;
+                double d_tau = dt == 0 ? 1 : 0;
+
                 
-		  //dwave_pp_correlator(b_l, r_l) += factor * struct_factor * value;
-		  index = tpeqtime_helper.dwave_pp_correlator_index(b_l,r_l);
 
-                  value = double(factor*struct_factor*((d_ij - G_r_t_up[j + ldGrt_up*i]) * (d_ll - G_r_t_dn[l + ldGrt_dn*l]) + (d_ij - G_r_t_dn[j + ldGrt_dn*i]) * (d_ll - G_r_t_up[l + ldGrt_up*l]) + (d_il - G_r_t_up[l +ldGrt_up*i]) * (d_lj - G_r_t_dn[j + ldGrt_dn*l]) + (d_il - G_r_t_dn[l +ldGrt_dn*i]) * (d_lj - G_r_t_up[j + ldGrt_up*l])));
-                  atomicAdd(&dwave_pp_correlator[index], value);
+                term = double(factor*struct_factor*( (d_ij*d_tau  + G_r_t_up[id_j + ldGrt_up*id_i]  ) * (d_llp*d_tau + G_r_t_dn[lp + ldGrt_dn*l] )
+                + (d_ij*d_tau  + G_r_t_dn[id_j + ldGrt_dn*id_i]  ) * (d_llp*d_tau + G_r_t_up[lp + ldGrt_up*l] )
+                + (d_ilp*d_tau + G_r_t_up[lp + ldGrt_up*id_i] ) * (d_lj *d_tau + G_r_t_dn[id_j + ldGrt_dn*l]  )
+                + (d_ilp*d_tau + G_r_t_dn[lp + ldGrt_dn*id_i] ) * (d_lj *d_tau + G_r_t_up[id_j + ldGrt_up*l]  )));
+
 	}
+		  
+		  index = tpeqtime_helper.chi_index(b_i,b_j,dr_index,dt);
+                  atomicAdd(&dwave_pp_correlator[index],term);
 
 
 }
 
 
 template <typename ScalarType>
-void accumulate_dwave_pp_correlator_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* dwave_pp_correlator, int t_VERTEX_dmn_size, int r_dmn_t_dmn_size, int dwave_config_size, cudaStream_t stream_)
+void accumulate_dwave_pp_correlator_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* dwave_pp_correlator, int b_r_t_VERTEX_dmn_size, int dwave_config_size, cudaStream_t stream_)
 {
-  double renorm = 1. / (t_VERTEX_dmn_size * pow(r_dmn_t_dmn_size, 2.));
-  double factor = sign * renorm;
+  const int n_dim1 = b_r_t_VERTEX_dmn_size;
+  const int n_dim2 = b_r_t_VERTEX_dmn_size;
+  const int n_dim3 = dwave_config_size;
+  const auto blocks = getBlockSize3D(n_dim1, n_dim2, n_dim3);
 
-  const int n_rows = dwave_config_size;
-  const int n_cols = t_VERTEX_dmn_size;
-  auto blocks = getBlockSize(n_rows, n_cols,32);
-
-    accumulate_dwave_pp_correlator_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, sign, dwave_pp_correlator, t_VERTEX_dmn_size, factor);
+    accumulate_dwave_pp_correlator_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, sign, dwave_pp_correlator);
 
 }
 
@@ -479,9 +500,9 @@ void sum_OnDevice(double* inMatrix, double* outMatrix, int ldM, cudaStream_t str
 }
 
 
-template void accumulate_dwave_pp_correlator_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* dwave_pp_correlator, int t_VERTEX_dmn_size, int r_dmn_t_dmn_size, int dwave_config_size, cudaStream_t stream_);
+template void accumulate_dwave_pp_correlator_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* dwave_pp_correlator, int b_r_t_VERTEX_dmn_size, int dwave_config_size, cudaStream_t stream_);
 
-template void accumulate_dwave_pp_correlator_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* dwave_pp_correlator, int t_VERTEX_dmn_size, int r_dmn_t_dmn_size, int dwave_config_size, cudaStream_t stream_);
+template void accumulate_dwave_pp_correlator_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* dwave_pp_correlator, int b_r_t_VERTEX_dmn_size, int dwave_config_size, cudaStream_t stream_);
 
 template void accumulate_chi_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
 

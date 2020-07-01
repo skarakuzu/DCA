@@ -24,7 +24,7 @@ namespace ctaux {
 
 __device__ __constant__ TpEqTimeHelper tpeqtime_helper;
 
-void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up,  const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn, int ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up, const float* G0_original_dn, int ldG0_original_dn,  int G0dmnsize, int tVertex_dmnsize,  const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val, double* r_abs_diff, int cluster_size,double beta, double N_div_beta, int* dwave_config_r_i, int* dwave_config_r_j, int* dwave_config_r_l, int* dwave_config_b_i, int* dwave_config_b_j, int* dwave_config_b_l, int dwave_config_size, double* dwave_r_factor) {
+void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up,  const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn, int ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up, const float* G0_original_dn, int ldG0_original_dn,  int G0dmnsize, int tVertex_dmnsize,  const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val, double* r_abs_diff, int cluster_size,double beta, double N_div_beta, int* dwave_config_r_l, int* dwave_config_r_lp, int* dwave_config_b_l, int* dwave_config_b_lp, int dwave_config_size, double* dwave_r_factor) {
 
 
   static std::once_flag flag;
@@ -130,41 +130,6 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMalloc(&host_helper.G0_original_dn_, sizeof(float) * ldG0_original_dn *G0dmnsize);
     cudaMemcpy(host_helper.G0_original_dn_, G0_original_dn, sizeof(float) * ldG0_original_dn *G0dmnsize,
                cudaMemcpyHostToDevice);
-/*
-    cudaMalloc(&host_helper.G0_indices_up_, sizeof(int) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_indices_up_, G0_indices_up, sizeof(int) * G0dmnsize * G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_indices_dn_, sizeof(int) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_indices_dn_, G0_indices_dn, sizeof(int) * G0dmnsize * G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_sign_up_, sizeof(float) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_sign_up_, G0_sign_up, sizeof(float) * G0dmnsize * G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_sign_dn_, sizeof(float) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_sign_dn_, G0_sign_dn, sizeof(float) * G0dmnsize * G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_integration_factor_up_, sizeof(float) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_integration_factor_up_, G0_integration_factor_up, sizeof(float) * G0dmnsize * G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_integration_factor_dn_, sizeof(float) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_integration_factor_dn_, G0_integration_factor_dn, sizeof(float) * G0dmnsize * G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_original_up_, sizeof(float) * G0dmnsize * G0dmnsize);
-    cudaMemcpy(host_helper.G0_original_up_, G0_original_up, sizeof(float) * G0dmnsize *G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.G0_original_dn_, sizeof(float) * G0dmnsize *G0dmnsize);
-    cudaMemcpy(host_helper.G0_original_dn_, G0_original_dn, sizeof(float) * G0dmnsize *G0dmnsize,
-               cudaMemcpyHostToDevice);
-
-*/
-
 
     cudaMalloc(&host_helper.akima_coefficients_, sizeof(double) * akima_size);
     cudaMemcpy(host_helper.akima_coefficients_, akima_coeff, sizeof(double) * akima_size,
@@ -190,28 +155,22 @@ void TpEqTimeHelper::set(const int* sub_r, int lds, int nr_sub, const int* G0_in
     cudaMemcpy(host_helper.r_abs_diff_, r_abs_diff, sizeof(double) * cluster_size,
                cudaMemcpyHostToDevice);
 
-    cudaMalloc(&host_helper.dwave_config_r_i_, sizeof(int) * dwave_config_size);
-    cudaMemcpy(host_helper.dwave_config_r_i_, dwave_config_r_i, sizeof(int) * dwave_config_size,
-               cudaMemcpyHostToDevice);
-
-    cudaMalloc(&host_helper.dwave_config_r_j_, sizeof(int) * dwave_config_size);
-    cudaMemcpy(host_helper.dwave_config_r_j_, dwave_config_r_j, sizeof(int) * dwave_config_size,
-               cudaMemcpyHostToDevice);
 
     cudaMalloc(&host_helper.dwave_config_r_l_, sizeof(int) * dwave_config_size);
     cudaMemcpy(host_helper.dwave_config_r_l_, dwave_config_r_l, sizeof(int) * dwave_config_size,
                cudaMemcpyHostToDevice);
 
-    cudaMalloc(&host_helper.dwave_config_b_i_, sizeof(int) * dwave_config_size);
-    cudaMemcpy(host_helper.dwave_config_b_i_, dwave_config_b_i, sizeof(int) * dwave_config_size,
+    cudaMalloc(&host_helper.dwave_config_r_lp_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_r_lp_, dwave_config_r_lp, sizeof(int) * dwave_config_size,
                cudaMemcpyHostToDevice);
 
-    cudaMalloc(&host_helper.dwave_config_b_j_, sizeof(int) * dwave_config_size);
-    cudaMemcpy(host_helper.dwave_config_b_j_, dwave_config_b_j, sizeof(int) * dwave_config_size,
-               cudaMemcpyHostToDevice);
 
     cudaMalloc(&host_helper.dwave_config_b_l_, sizeof(int) * dwave_config_size);
     cudaMemcpy(host_helper.dwave_config_b_l_, dwave_config_b_l, sizeof(int) * dwave_config_size,
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&host_helper.dwave_config_b_lp_, sizeof(int) * dwave_config_size);
+    cudaMemcpy(host_helper.dwave_config_b_lp_, dwave_config_b_lp, sizeof(int) * dwave_config_size,
                cudaMemcpyHostToDevice);
 
     cudaMalloc(&host_helper.dwave_r_factor_, sizeof(double) * nr_akm);

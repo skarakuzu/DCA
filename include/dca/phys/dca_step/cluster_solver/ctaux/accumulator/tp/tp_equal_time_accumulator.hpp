@@ -109,7 +109,7 @@ public:
   func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_magnetic_cluster_moment() {
     return magnetic_cluster_moment;
   }
-  func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_dwave_pp_correlator() {
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_dwave_pp_correlator() {
     return dwave_pp_correlator;
   }
 
@@ -264,7 +264,7 @@ protected:
   func::function<double, k_dmn_t> dwave_k_factor;
   func::function<double, r_dmn_t> dwave_r_factor;
 
-  func::function<double, func::dmn_variadic<b, r_dmn_t>> dwave_pp_correlator;
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>> dwave_pp_correlator;
   dca::linalg::Vector<double, dca::linalg::CPU> r_abs_diff;
 };
 
@@ -844,7 +844,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
 /*!
  * P_d
  */
-template <class parameters_type, class MOMS_type>
+/*template <class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate_dwave_pp_correlator(double sign) {
   double renorm = 1. / (t_VERTEX::dmn_size() * pow(r_dmn_t::dmn_size(), 2.));
   double factor = sign * renorm;
@@ -889,6 +889,79 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
     }
   }
 }
+*/
+
+template<class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_dwave_pp_correlator(double sign){
+
+  int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt;
+  double Pd, Pxs, Ppx, Ppy, Pxmx,term;
+
+  for(int j=0; j<b_r_t_VERTEX_dmn_t::dmn_size(); j++){
+    b_j = fixed_configuration[j].b_ind;
+    r_j = fixed_configuration[j].r_ind;
+    t_j = fixed_configuration[j].t_ind;
+
+    for(int i=0; i<b_r_t_VERTEX_dmn_t::dmn_size(); i++){
+      b_i = fixed_configuration[i].b_ind;
+      r_i = fixed_configuration[i].r_ind;
+      t_i = fixed_configuration[i].t_ind;
+
+      dr = RClusterDmn::parameter_type::subtract(r_j, r_i);
+      dt = t_i-t_j;
+
+      Pd = 0.0; Pxs = 0.0; Ppx = 0.0; Ppy = 0.0; Pxmx = 0.0;
+
+        dt = dt<0 ? dt+t_VERTEX::dmn_size()-1 : dt;
+
+        for (int r_l=0; r_l<r_dmn_t::dmn_size(); r_l++) {
+          for (int r_lp=0; r_lp<r_dmn_t::dmn_size(); r_lp++) {
+
+
+            int i_minus_l  = r_dmn_t::parameter_type::subtract(r_l, r_i);
+            int j_minus_lp = r_dmn_t::parameter_type::subtract(r_lp, r_j);
+
+            double struct_factor_d   = dwave_r_factor(i_minus_l) * dwave_r_factor(j_minus_lp);
+
+            if (fabs(struct_factor_d )  > 1.0e-6 ) {
+
+
+            for (int b_l=0; b_l<b::dmn_size(); b_l++) {
+              for (int b_lp=0; b_lp<b::dmn_size(); b_lp++) {
+
+                int l  = b_r_t_dmn(b_l,r_l,t_i);
+                int lp = b_r_t_dmn(b_lp,r_lp,t_j);
+
+
+                double d_ij  = i == j  ? 1 : 0;
+                double d_llp = l == lp ? 1 : 0;
+                double d_ilp = i == lp  ? 1 : 0;
+                double d_lj  = l == j  ? 1 : 0;
+
+                double d_tau = dt == 0 ? 1 : 0;
+
+                term =  (d_ij*d_tau  + G_r_t_up(j,i)  ) * (d_llp*d_tau + G_r_t_dn(lp,l) );
+                term += (d_ij*d_tau  + G_r_t_dn(j,i)  ) * (d_llp*d_tau + G_r_t_up(lp,l) );
+                term += (d_ilp*d_tau + G_r_t_up(lp,i) ) * (d_lj *d_tau + G_r_t_dn(j,l)  );
+                term += (d_ilp*d_tau + G_r_t_dn(lp,i) ) * (d_lj *d_tau + G_r_t_up(j,l)  );
+
+
+                Pd   += struct_factor_d   * term;
+
+              }
+            }
+          }
+          }
+        }
+
+      dwave_pp_correlator(b_i,b_j,dr,dt)  += Pd  * sign * G0_integration_factor_up(i,j);
+
+    }
+  }
+}
+
+
+
 
 template <class parameters_type, class MOMS_type>
 int TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::find_first_non_interacting_spin(

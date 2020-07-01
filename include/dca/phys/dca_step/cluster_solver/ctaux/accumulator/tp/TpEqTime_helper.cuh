@@ -26,7 +26,7 @@ namespace ctaux {
 class TpEqTimeHelper {
 public:
 
-  static void set(const int* sub_r, int lds, int nr, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up, const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn,int  ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up,  const float* G0_original_dn, int ldG0_original_dn, int b_r_t_VERTEX_dmn_t_size,int t_VERTEX_dmn_size, const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val,  double* r_abs_diff, int cluster_size,double beta, double N_div_beta,int* dwave_config_r_i,int* dwave_config_r_j, int* dwave_config_r_l, int* dwave_config_b_i, int* dwave_config_b_j, int* dwave_config_b_l, int dwave_config_size, double* dwave_r_factor);
+  static void set(const int* sub_r, int lds, int nr, const int* G0_indices_up, int ldG0_indices_up, const int* G0_indices_dn, int ldG0_indices_dn, const float* G0_sign_up, int ldG0_sign_up, const float* G0_sign_dn, int ldG0_sign_dn, const float* G0_integration_factor_up, int ldG0_integration_factor_up, const float* G0_integration_factor_dn,int  ldG0_integration_factor_dn, const float* G0_original_up, int ldG0_original_up,  const float* G0_original_dn, int ldG0_original_dn, int b_r_t_VERTEX_dmn_t_size,int t_VERTEX_dmn_size, const double* akima_coeff, int lakm, int nb_akm, int ns_akm, int nr_akm, int nt_akm, int akima_size, int* fixed_config_b_ind, int* fixed_config_r_ind, int* fixed_config_t_ind, double* fixed_config_t_val,  double* r_abs_diff, int cluster_size,double beta, double N_div_beta, int* dwave_config_r_l, int* dwave_config_r_lp, int* dwave_config_b_l, int* dwave_config_b_lp, int dwave_config_size, double* dwave_r_factor);
 
 
   __device__ inline int get_b_r_t_VERTEX_dmn_tsize() const;
@@ -46,18 +46,15 @@ public:
   __device__ inline int fixed_config_b_ind(int index) const;
   __device__ inline int fixed_config_r_ind(int index) const;
   __device__ inline int fixed_config_t_ind(int index) const;
-  __device__ inline int dwave_config_r_i(int index) const;
-  __device__ inline int dwave_config_r_j(int index) const;
   __device__ inline int dwave_config_r_l(int index) const;
-  __device__ inline int dwave_config_b_i(int index) const;
-  __device__ inline int dwave_config_b_j(int index) const;
+  __device__ inline int dwave_config_r_lp(int index) const;
   __device__ inline int dwave_config_b_l(int index) const;
+  __device__ inline int dwave_config_b_lp(int index) const;
   __device__ inline double dwave_r_factor(int index) const;
   __device__ inline double fixed_config_t_val(int index) const;
   __device__ inline double r_abs_diff(int index) const;
   __device__ inline int chi_index(int b1, int b2, int dr, int dt) const;
   __device__ inline int brt_dmn_index(int b1, int dr, int dt) const;
-  __device__ inline int dwave_pp_correlator_index(int b1, int dr) const;
   __device__ inline double akima_coeff_mat(int b1, int s1, int b2, int s2, int r_ind, double delta_tau) const;
 
 protected:
@@ -96,12 +93,10 @@ protected:
   int* fixed_config_t_ind_;
   double* fixed_config_t_val_;
   double* r_abs_diff_;
-  int* dwave_config_r_i_;
-  int* dwave_config_r_j_;
   int* dwave_config_r_l_;
-  int* dwave_config_b_i_;
-  int* dwave_config_b_j_;
+  int* dwave_config_r_lp_;
   int* dwave_config_b_l_;
+  int* dwave_config_b_lp_;
   int dwave_config_size_;
   double* dwave_r_factor_;
 };
@@ -178,23 +173,17 @@ inline __device__ double TpEqTimeHelper::fixed_config_t_val(const int index) con
   return fixed_config_t_val_[index];
 }
 
-inline __device__ int TpEqTimeHelper::dwave_config_r_i(const int index) const {
-  return dwave_config_r_i_[index];
-}
-inline __device__ int TpEqTimeHelper::dwave_config_r_j(const int index) const {
-  return dwave_config_r_j_[index];
-}
 inline __device__ int TpEqTimeHelper::dwave_config_r_l(const int index) const {
   return dwave_config_r_l_[index];
 }
-inline __device__ int TpEqTimeHelper::dwave_config_b_i(const int index) const {
-  return dwave_config_b_i_[index];
-}
-inline __device__ int TpEqTimeHelper::dwave_config_b_j(const int index) const {
-  return dwave_config_b_j_[index];
+inline __device__ int TpEqTimeHelper::dwave_config_r_lp(const int index) const {
+  return dwave_config_r_lp_[index];
 }
 inline __device__ int TpEqTimeHelper::dwave_config_b_l(const int index) const {
   return dwave_config_b_l_[index];
+}
+inline __device__ int TpEqTimeHelper::dwave_config_b_lp(const int index) const {
+  return dwave_config_b_lp_[index];
 }
 
 inline __device__ double TpEqTimeHelper::dwave_r_factor(const int index) const {
@@ -213,11 +202,6 @@ inline __device__ int TpEqTimeHelper::chi_index(const int b1, const int b2, cons
 
 inline __device__ int TpEqTimeHelper::brt_dmn_index(const int b1, const int dr, const int dt) const {
   int index = brt_dmn_steps_[0]*b1 + brt_dmn_steps_[1]*dr + brt_dmn_steps_[2]*dt;
-  return index;
-}
-
-inline __device__ int TpEqTimeHelper::dwave_pp_correlator_index(const int b1, const int dr) const {
-  int index = brt_dmn_steps_[0]*b1 + brt_dmn_steps_[1]*dr;
   return index;
 }
 
