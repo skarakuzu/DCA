@@ -895,7 +895,7 @@ template<class parameters_type, class MOMS_type>
 void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_dwave_pp_correlator(double sign){
 
   int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt;
-  double Pd, Pxs, Ppx, Ppy, Pxmx,term;
+  double Pd, term;
 
   for(int j=0; j<b_r_t_VERTEX_dmn_t::dmn_size(); j++){
     b_j = fixed_configuration[j].b_ind;
@@ -910,7 +910,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_dwave_pp_cor
       dr = RClusterDmn::parameter_type::subtract(r_j, r_i);
       dt = t_i-t_j;
 
-      Pd = 0.0; Pxs = 0.0; Ppx = 0.0; Ppy = 0.0; Pxmx = 0.0;
+      Pd = 0.0; 
 
         dt = dt<0 ? dt+t_VERTEX::dmn_size()-1 : dt;
 
