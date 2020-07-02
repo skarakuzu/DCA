@@ -892,7 +892,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
 */
 
 template<class parameters_type, class MOMS_type>
-void TpEqualTimeAccumulator<parameters_type, MOMS_type>::accumulate_dwave_pp_correlator(double sign){
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate_dwave_pp_correlator(double sign){
 
   int b_i, b_j, r_i, r_j, t_i, t_j, dr, dt;
   double Pd, term;
