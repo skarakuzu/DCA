@@ -854,10 +854,6 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate
 
   accumulate_dwave_pp_correlator_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,dwave_pp_correlator_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), dwave_config_size, streams_[0]);
   assert(cudaPeekAtLastError() == cudaSuccess);
-//  accumulate_moments(sign);
-
-//  accumulate_dwave_pp_correlator(sign);
-
 
 
   synchronizeStreams();
