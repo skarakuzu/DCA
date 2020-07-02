@@ -427,9 +427,6 @@ __global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r
         r_l = tpeqtime_helper.dwave_config_r_l(id_z);
         r_lp = tpeqtime_helper.dwave_config_r_lp(id_z);
 
-        b_l = tpeqtime_helper.dwave_config_b_l(id_z);
-        b_lp = tpeqtime_helper.dwave_config_b_lp(id_z);
-
         i_minus_l = tpeqtime_helper.rMinus(r_l, r_i);
         j_minus_lp = tpeqtime_helper.rMinus(r_lp, r_j);
 
@@ -439,7 +436,11 @@ __global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r
 
         if (fabs(struct_factor) > 1.e-6) {
 
+        b_l = tpeqtime_helper.dwave_config_b_l(id_z);
+        b_lp = tpeqtime_helper.dwave_config_b_lp(id_z);
+
  	factor = sign*tpeqtime_helper.G0_integration_factor_up_mat(id_i,id_j);
+
 	l = tpeqtime_helper.brt_dmn_index(b_l,r_l,t_i);
 	lp = tpeqtime_helper.brt_dmn_index(b_lp,r_lp,t_j);
 
