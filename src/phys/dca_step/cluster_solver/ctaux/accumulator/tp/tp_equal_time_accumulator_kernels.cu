@@ -452,7 +452,11 @@ __global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r
 
                 
 
-                term = double(factor*struct_factor*( (d_ij*d_tau  + G_r_t_up[id_j + ldGrt_up*id_i]  ) * (d_llp*d_tau + G_r_t_dn[lp + ldGrt_dn*l] ) + (d_ij*d_tau  + G_r_t_dn[id_j + ldGrt_dn*id_i]  ) * (d_llp*d_tau + G_r_t_up[lp + ldGrt_up*l] ) + (d_ilp*d_tau + G_r_t_up[lp + ldGrt_up*id_i] ) * (d_lj *d_tau + G_r_t_dn[id_j + ldGrt_dn*l]  ) + (d_ilp*d_tau + G_r_t_dn[lp + ldGrt_dn*id_i] ) * (d_lj *d_tau + G_r_t_up[id_j + ldGrt_up*l]  )));
+                term = double(factor*struct_factor*( G_r_t_up[id_i + ldGrt_up*id_j]  * G_r_t_dn[l + ldGrt_dn*lp] + G_r_t_dn[id_i + ldGrt_dn*id_j]  * G_r_t_up[l + ldGrt_up*lp]));
+
+//               term = G_r_t_up(i,j)  * G_r_t_dn(l,lp) ;
+//                term += G_r_t_dn(i,j)  * G_r_t_up(l,lp) ;
+
 
 		  index = tpeqtime_helper.chi_index(b_i,b_j,dr_index,dt);
                   atomicAdd(&dwave_pp_correlator[index],term);

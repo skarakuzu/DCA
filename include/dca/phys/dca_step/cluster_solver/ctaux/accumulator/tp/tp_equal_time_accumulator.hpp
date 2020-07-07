@@ -933,18 +933,17 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
                 int lp = b_r_t_dmn(b_lp,r_lp,t_j);
 
 
-                double d_ij  = i == j  ? 1 : 0;
+          /*      double d_ij  = i == j  ? 1 : 0;
                 double d_llp = l == lp ? 1 : 0;
                 double d_ilp = i == lp  ? 1 : 0;
                 double d_lj  = l == j  ? 1 : 0;
 
                 double d_tau = dt == 0 ? 1 : 0;
+	  */
 
-                term =  (d_ij*d_tau  + G_r_t_up(j,i)  ) * (d_llp*d_tau + G_r_t_dn(lp,l) );
-                term += (d_ij*d_tau  + G_r_t_dn(j,i)  ) * (d_llp*d_tau + G_r_t_up(lp,l) );
-                term += (d_ilp*d_tau + G_r_t_up(lp,i) ) * (d_lj *d_tau + G_r_t_dn(j,l)  );
-                term += (d_ilp*d_tau + G_r_t_dn(lp,i) ) * (d_lj *d_tau + G_r_t_up(j,l)  );
 
+		term = G_r_t_up(i,j)  * G_r_t_dn(l,lp) ;
+		term += G_r_t_dn(i,j)  * G_r_t_up(l,lp) ;
 
                 Pd   += struct_factor_d   * term;
 
