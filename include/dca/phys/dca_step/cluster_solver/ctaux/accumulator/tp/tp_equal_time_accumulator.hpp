@@ -316,7 +316,7 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::TpEqualTimeAccu
 
   r_abs_diff.resizeNoCopy(rcluster_size);
   
-  std::cout<<"form factor: ";
+//  std::cout<<"form factor: ";
   for (int a=0; a<rcluster_size; a++) 
   {
   value_r.push_back(RClusterDmn::parameter_type::get_elements()[a]);
