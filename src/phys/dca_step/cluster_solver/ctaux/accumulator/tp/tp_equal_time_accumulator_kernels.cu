@@ -418,6 +418,8 @@ __global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r
       r_i = tpeqtime_helper.fixed_config_r_ind(id_i);
       t_i = tpeqtime_helper.fixed_config_t_ind(id_i);
 
+//      if(t_i != t_VERTEX_dmn_size-1 && t_j != t_VERTEX_dmn_size-1)
+//      {
 
       dr_index = tpeqtime_helper.rMinus(r_j,r_i);
       dt = t_i-t_j;
@@ -440,6 +442,7 @@ __global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r
         b_lp = tpeqtime_helper.dwave_config_b_lp(id_z);
 
  	factor = sign*tpeqtime_helper.G0_integration_factor_up_mat(id_i,id_j);
+ 	//factor = sign/double(t_VERTEX_dmn_size);
 
 	l = tpeqtime_helper.brt_dmn_index(b_l,r_l,t_i);
 	lp = tpeqtime_helper.brt_dmn_index(b_lp,r_lp,t_j);
@@ -452,17 +455,20 @@ __global__ void accumulate_dwave_pp_correlator_OnDevice_Kernel(const float * G_r
 
                 
 
+                //term = double(factor*struct_factor*( G_r_t_up[id_i + ldGrt_up*id_j] + G_r_t_dn[l + ldGrt_dn*lp] )); //deletelater
                 term = double(factor*struct_factor*( G_r_t_up[id_i + ldGrt_up*id_j]  * G_r_t_dn[l + ldGrt_dn*lp] + G_r_t_dn[id_i + ldGrt_dn*id_j]  * G_r_t_up[l + ldGrt_up*lp]));
+//                term = double(factor*struct_factor*( G_r_t_up[id_i + ldGrt_up*id_j]  * G_r_t_dn[l + ldGrt_dn*lp] + G_r_t_up[id_j + ldGrt_up*id_i]  * G_r_t_dn[lp + ldGrt_dn*l]));
 
 //               term = G_r_t_up(i,j)  * G_r_t_dn(l,lp) ;
 //                term += G_r_t_dn(i,j)  * G_r_t_up(l,lp) ;
 
+		//term = double(factor*struct_factor*((d_ij*d_tau  + G_r_t_up[id_j+ ldGrt_up*id_i]  ) * (d_llp*d_tau + G_r_t_dn[lp +ldGrt_dn*l] ) +  (d_ij*d_tau  + G_r_t_dn[id_j +ldGrt_dn*id_i]  ) * (d_llp*d_tau + G_r_t_up[lp +ldGrt_up*l] )));
 
 		  index = tpeqtime_helper.chi_index(b_i,b_j,dr_index,dt);
                   atomicAdd(&dwave_pp_correlator[index],term);
 	}
 		  
-
+//}
 
 }
 

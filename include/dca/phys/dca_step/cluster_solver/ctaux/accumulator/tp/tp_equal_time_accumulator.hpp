@@ -315,12 +315,15 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::TpEqualTimeAccu
   int rcluster_size = RClusterDmn::parameter_type::get_size();
 
   r_abs_diff.resizeNoCopy(rcluster_size);
-
+  
+  std::cout<<"form factor: ";
   for (int a=0; a<rcluster_size; a++) 
   {
   value_r.push_back(RClusterDmn::parameter_type::get_elements()[a]);
   r_abs_diff[a] = sqrt(value_r[a][0]*value_r[a][0] + value_r[a][1]*value_r[a][1]);
+//  std::cout<<dwave_r_factor(a)<<" ";
   }
+//  std::cout<<std::endl;
 
 }
 
@@ -357,9 +360,9 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::initialize
   fixed_configuration.resize(b::dmn_size() * r_dmn_t::dmn_size() * t_VERTEX::dmn_size());
 
   int index = 0;
-  for (int b_ind = 0; b_ind < b::dmn_size(); b_ind++) {
-    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++) {
       for (int t_ind = 0; t_ind < t_VERTEX::dmn_size(); t_ind++) {
+    for (int r_ind = 0; r_ind < r_dmn_t::dmn_size(); r_ind++) {
+  for (int b_ind = 0; b_ind < b::dmn_size(); b_ind++) {
         singleton_operator tmp;
 
         tmp.b_ind = b_ind;
