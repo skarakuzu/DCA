@@ -73,10 +73,10 @@ TEST_F(TpEqualTimeAccumulatorTest, AccumulateAndSum) {
   expect_near(accumulator_sum.get_spin_ZZ_chi(), accumulator3.get_spin_ZZ_chi());
   expect_near(accumulator_sum.get_spin_ZZ_chi_stddev(), accumulator3.get_spin_ZZ_chi_stddev());
   expect_near(accumulator_sum.get_spin_XX_chi(), accumulator3.get_spin_XX_chi());
+  expect_near(accumulator_sum.get_charge_chi(), accumulator3.get_charge_chi());
   expect_near(accumulator_sum.get_dwave_pp_correlator(), accumulator3.get_dwave_pp_correlator());
-  //expect_near(accumulator_sum.get_charge_cluster_moment(), accumulator3.get_charge_cluster_moment());
-  //expect_near(accumulator_sum.get_magnetic_cluster_moment(),
-  //            accumulator3.get_magnetic_cluster_moment());
+  expect_near(accumulator_sum.get_charge_cluster_moment(), accumulator3.get_charge_cluster_moment());
+  expect_near(accumulator_sum.get_magnetic_cluster_moment(),accumulator3.get_magnetic_cluster_moment());
 }
 
 void buildConfiguration(Configuration& config, Sample& sample, int b_size, int r_size, double beta,

@@ -40,10 +40,14 @@ void accumulate_G_r_t_OnDevice(const float * G_r_t_up, int ldGrt_up, const float
 
 
 template <typename ScalarType>
-void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
+void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, double* charge_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
 
 template <typename ScalarType>
 void accumulate_dwave_pp_correlator_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* dwave_pp_correlator, int b_r_t_VERTEX_dmn_size, int dwave_config_size, cudaStream_t stream_);
+
+
+template <typename ScalarType>
+void accumulate_moments_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* charge_moment, double* magnetic_moment, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
 
 void sum_OnDevice(double* inMatrix, double* outMatrix, int ldM, cudaStream_t stream_);
 

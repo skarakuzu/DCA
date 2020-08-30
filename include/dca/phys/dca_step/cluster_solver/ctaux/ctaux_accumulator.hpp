@@ -129,6 +129,9 @@ public:
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_XX_chi() {
     return equal_time_accumulator_.get_spin_XX_chi();
   }
+  func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_charge_chi() {
+    return equal_time_accumulator_.get_charge_chi();
+  }
   func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_charge_cluster_moment() {
     return equal_time_accumulator_.get_charge_cluster_moment();
   }
@@ -327,6 +330,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::write(Writer& writer) {
     writer.execute(get_spin_ZZ_chi());
     writer.execute(get_spin_ZZ_chi_stddev());
     writer.execute(get_spin_XX_chi());
+    writer.execute(get_charge_chi());
   }
 
   //       writer.close_group();
@@ -383,9 +387,10 @@ void CtauxAccumulator<device_t, Parameters, Data>::measure() {
 
   if ((DCA_iteration == parameters_.get_dca_iterations() - 1 || parameters_.dump_at_each_iteration()) &&
       parameters_.additional_time_measurements())
-    accumulate_equal_time_quantities();
+{    accumulate_equal_time_quantities(); 
+//std::cout<<"In ctaux_acc: "<<std::endl;
 }
-
+}
 #ifdef MEASURE_ERROR_BARS
 
 /*!

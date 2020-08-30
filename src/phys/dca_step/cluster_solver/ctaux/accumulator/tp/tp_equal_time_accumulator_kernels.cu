@@ -288,7 +288,7 @@ void accumulate_G_r_t_OnDevice(const float * G_r_t_up, int ldGrt_up, const float
 
 
 template <typename ScalarType>
-__global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_chi_stddev, double* spin_XX_chi_accumulated, double sfactor,int t_VERTEX_dmn_size)
+__global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_chi_stddev, double* spin_XX_chi_accumulated, double* charge_chi_accumulated, double sfactor,int t_VERTEX_dmn_size)
 {
 
   const int n_rows = tpeqtime_helper.get_b_r_t_VERTEX_dmn_tsize();
@@ -302,9 +302,9 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
     return;
 
   int b_i, b_j, r_i, r_j, t_i, t_j, dr_index, dt, index, indexL;
-  float upup, updn, spin_ZZ_val, spin_XX_contribution;
+  float upup, updn, spin_ZZ_val, spin_XX_contribution, charge_contribution;
   double dr;
-
+  double cfactor = 2.0*sfactor;
  
     b_j = tpeqtime_helper.fixed_config_b_ind(id_j);
     r_j = tpeqtime_helper.fixed_config_r_ind(id_j);
@@ -323,6 +323,7 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
 
       spin_ZZ_val = 0.0;
       spin_XX_contribution = 0.0;
+      charge_contribution = 0.0;
 
       if(t_i != t_VERTEX_dmn_size-1 && t_j != t_VERTEX_dmn_size-1)
       {
@@ -337,14 +338,17 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
         if(dt==0){
           spin_XX_contribution -= sfactor* updn*sign;
           spin_ZZ_val = -upup;
+	  charge_contribution -= cfactor* upup* sign;
         } else{
           spin_XX_contribution += sfactor* updn*sign;
           spin_ZZ_val = upup;
+	  charge_contribution += cfactor* upup* sign;
         }
 
         upup = (1.0+G_r_t_up[id_i+id_i*ldGrt_up])*(1.0+G_r_t_up[id_j+id_j*ldGrt_up]) + (1.0+G_r_t_dn[id_i+id_i*ldGrt_dn])*(1.0+G_r_t_dn[id_j+id_j*ldGrt_dn]);
         updn = (1.0+G_r_t_up[id_i+id_i*ldGrt_up])*(1.0+G_r_t_dn[id_j+id_j*ldGrt_dn]) + (1.0+G_r_t_dn[id_i+id_i*ldGrt_dn])*(1.0+G_r_t_up[id_j+id_j*ldGrt_up]);
         spin_ZZ_val += (upup - updn);
+	charge_contribution += cfactor* (upup + updn)* sign;
 
         if(b_i==b_j && dr<5e-7 && dt==0){
           // correction due to cc+ = 1=c+c
@@ -352,10 +356,12 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
           updn = G_r_t_up[id_j+id_j*ldGrt_up] + G_r_t_dn[id_j+id_j*ldGrt_dn];
           spin_XX_contribution -= sfactor* updn*sign;
           spin_ZZ_val += -updn;
+	  charge_contribution -= cfactor* updn* sign;
         }
         atomicAdd(&spin_XX_chi_accumulated[index],double(spin_XX_contribution));
         atomicAdd(&spin_ZZ_chi_accumulated[index], double(spin_ZZ_val * sfactor * sign));
         atomicAdd(&spin_ZZ_chi_stddev[index], double(spin_ZZ_val * spin_ZZ_val * sfactor * sign));
+        atomicAdd(&charge_chi_accumulated[index],double(charge_contribution));
 
       if(dt==0)
 	{
@@ -363,6 +369,7 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
         atomicAdd(&spin_XX_chi_accumulated[indexL],double(spin_XX_contribution));
         atomicAdd(&spin_ZZ_chi_accumulated[indexL], double(spin_ZZ_val * sfactor * sign));
         atomicAdd(&spin_ZZ_chi_stddev[indexL], double(spin_ZZ_val * spin_ZZ_val * sfactor * sign));
+        atomicAdd(&charge_chi_accumulated[indexL],double(charge_contribution));
 
 	}
 
@@ -374,7 +381,7 @@ __global__ void accumulate_chi_OnDevice_Kernel(const float * G_r_t_up, int ldGrt
 
 
 template <typename ScalarType>
-void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_chi_stddev, double* spin_XX_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_)
+void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_chi_stddev, double* spin_XX_chi_accumulated, double* charge_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_)
 {
 
   const int n_rows = G0dmnsize;
@@ -384,7 +391,7 @@ void accumulate_chi_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* 
 
   double sfactor = 0.5/double(((t_VERTEX_dmn_size-1.0)*r_dmn_t_dmn_size));
 
-    accumulate_chi_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, sign, spin_ZZ_chi_accumulated, spin_ZZ_chi_stddev, spin_XX_chi_accumulated, sfactor,t_VERTEX_dmn_size);
+    accumulate_chi_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, sign, spin_ZZ_chi_accumulated, spin_ZZ_chi_stddev, spin_XX_chi_accumulated, charge_chi_accumulated, sfactor,t_VERTEX_dmn_size);
 
 }
 
@@ -486,6 +493,58 @@ void accumulate_dwave_pp_correlator_OnDevice(const float * G_r_t_up, int ldGrt_u
 }
 
 
+template <typename ScalarType>
+__global__ void accumulate_moments_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* charge_moment, double *magnetic_moment, int b_r_t_VERTEX_dmn_size)
+{
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  
+      if (id_i >= b_r_t_VERTEX_dmn_size) return;
+  
+      const int t_VERTEX_dmn_size = tpeqtime_helper.get_t_VERTEX_dmn_size();
+      int b_i, r_i, t_i,index;
+      double term_charge,term_magnet;
+
+      b_i = tpeqtime_helper.fixed_config_b_ind(id_i);
+      r_i = tpeqtime_helper.fixed_config_r_ind(id_i);
+      t_i = tpeqtime_helper.fixed_config_t_ind(id_i);
+
+
+        int i = tpeqtime_helper.brt_dmn_index(b_i,r_i,t_i);
+        int j = i;
+
+        double charge_val = G_r_t_up[i + j*ldGrt_up] * G_r_t_dn[i + j*ldGrt_dn];  // double occupancy = <n_d*n_u>
+        double magnetic_val =
+            1. - 2. * G_r_t_up[i + j*ldGrt_up] * G_r_t_dn[i + j*ldGrt_dn];  // <m^2> = 1-2*<n_d*n_u> (T. Paiva, PRB 2001)
+        
+
+	index = tpeqtime_helper.br_dmn_index(b_i,r_i);
+
+	term_charge = sign * charge_val / t_VERTEX_dmn_size;
+	term_magnet = sign * magnetic_val / t_VERTEX_dmn_size;
+
+        atomicAdd(&charge_moment[index], term_charge);
+        atomicAdd(&magnetic_moment[index], term_magnet);
+
+
+}
+
+
+
+template <typename ScalarType>
+void accumulate_moments_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* charge_moment, double* magnetic_moment, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_)
+{
+
+  const int n = b_r_t_VERTEX_dmn_size;
+  auto blocks = getBlockSize1D(n,128);
+
+     accumulate_moments_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, sign,charge_moment, magnetic_moment, b_r_t_VERTEX_dmn_size);
+
+}
+
+
+
+
+
 __global__ void sum_OnDevice_Kernel( double* inMatrix, double* outMatrix, int ldM)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -508,15 +567,18 @@ void sum_OnDevice(double* inMatrix, double* outMatrix, int ldM, cudaStream_t str
 
 }
 
+template void accumulate_moments_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* charge_moment, double * magnetic_moment, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
+
+template void accumulate_moments_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* charge_moment, double * magnetic_moment, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
 
 template void accumulate_dwave_pp_correlator_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* dwave_pp_correlator, int b_r_t_VERTEX_dmn_size, int dwave_config_size, cudaStream_t stream_);
 
 template void accumulate_dwave_pp_correlator_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* dwave_pp_correlator, int b_r_t_VERTEX_dmn_size, int dwave_config_size, cudaStream_t stream_);
 
-template void accumulate_chi_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
+template void accumulate_chi_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, double* charge_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
 
 
-template void accumulate_chi_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
+template void accumulate_chi_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* spin_ZZ_chi_accumulated, double* spin_ZZ_stddev, double* spin_XX_chi_accumulated, double* charge_chi_accumulated,int G0dmnsize, int r_dmn_t_dmn_size ,int t_VERTEX_dmn_size, cudaStream_t stream_);
 
 template void accumulate_G_r_t_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* G_r_t_accumulated, double* G_r_t_accumulated_squared, int G0dmnsize, cudaStream_t stream_);
 

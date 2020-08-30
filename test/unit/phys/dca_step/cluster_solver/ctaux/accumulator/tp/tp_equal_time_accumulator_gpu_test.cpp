@@ -72,7 +72,10 @@ TEST_F(TpEqualTimeAccumulatorGpuTest, AccumulateAndSum) {
   expect_near(accumulator1.get_spin_ZZ_chi(), accumulator2.get_spin_ZZ_chi());
   expect_near(accumulator1.get_spin_XX_chi(), accumulator2.get_spin_XX_chi());
   expect_near(accumulator1.get_spin_ZZ_chi_stddev(), accumulator2.get_spin_ZZ_chi_stddev());
+  expect_near(accumulator1.get_charge_chi(), accumulator2.get_charge_chi());
   expect_near(accumulator1.get_dwave_pp_correlator(), accumulator2.get_dwave_pp_correlator());
+  expect_near(accumulator1.get_charge_cluster_moment(), accumulator2.get_charge_cluster_moment());
+  expect_near(accumulator1.get_magnetic_cluster_moment(), accumulator2.get_magnetic_cluster_moment());
 }
 
 void buildConfiguration(Configuration& config, Sample& sample, int b_size, int r_size, double beta,

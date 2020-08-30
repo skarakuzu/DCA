@@ -55,6 +55,7 @@ public:
   __device__ inline double r_abs_diff(int index) const;
   __device__ inline int chi_index(int b1, int b2, int dr, int dt) const;
   __device__ inline int brt_dmn_index(int b1, int dr, int dt) const;
+  __device__ inline int br_dmn_index(int b1, int dr) const;
   __device__ inline double akima_coeff_mat(int b1, int s1, int b2, int s2, int r_ind, double delta_tau) const;
 
 protected:
@@ -202,6 +203,11 @@ inline __device__ int TpEqTimeHelper::chi_index(const int b1, const int b2, cons
 
 inline __device__ int TpEqTimeHelper::brt_dmn_index(const int b1, const int dr, const int dt) const {
   int index = brt_dmn_steps_[0]*b1 + brt_dmn_steps_[1]*dr + brt_dmn_steps_[2]*dt;
+  return index;
+}
+
+inline __device__ int TpEqTimeHelper::br_dmn_index(const int b1, const int dr) const {
+  int index = brt_dmn_steps_[0]*b1 + brt_dmn_steps_[1]*dr;
   return index;
 }
 
