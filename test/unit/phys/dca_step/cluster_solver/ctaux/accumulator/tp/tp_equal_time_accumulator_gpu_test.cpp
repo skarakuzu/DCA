@@ -76,6 +76,7 @@ TEST_F(TpEqualTimeAccumulatorGpuTest, AccumulateAndSum) {
   expect_near(accumulator1.get_dwave_pp_correlator(), accumulator2.get_dwave_pp_correlator());
   expect_near(accumulator1.get_charge_cluster_moment(), accumulator2.get_charge_cluster_moment());
   expect_near(accumulator1.get_magnetic_cluster_moment(), accumulator2.get_magnetic_cluster_moment());
+  expect_near(accumulator1.get_site_dependent_density(), accumulator2.get_site_dependent_density());
 }
 
 void buildConfiguration(Configuration& config, Sample& sample, int b_size, int r_size, double beta,

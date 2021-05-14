@@ -141,6 +141,9 @@ public:
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_dwave_pp_correlator() {
     return equal_time_accumulator_.get_dwave_pp_correlator();
   }
+  func::function<double, func::dmn_variadic<b, r_dmn_t, t_VERTEX>>& get_site_dependent_density() {
+    return equal_time_accumulator_.get_site_dependent_density();
+  }
 
   // sp-measurements
   const auto& get_sign_times_M_r_w() const {
@@ -323,6 +326,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::write(Writer& writer) {
     writer.execute(get_charge_cluster_moment());
     writer.execute(get_magnetic_cluster_moment());
     writer.execute(get_dwave_pp_correlator());
+    writer.execute(get_site_dependent_density());
 
     writer.execute(get_G_r_t());
     writer.execute(get_G_r_t_stddev());

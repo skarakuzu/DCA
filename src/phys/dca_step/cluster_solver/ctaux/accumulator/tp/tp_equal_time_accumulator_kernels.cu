@@ -544,6 +544,53 @@ void accumulate_moments_OnDevice(const float * G_r_t_up, int ldGrt_up, const flo
 
 
 
+template <typename ScalarType>
+__global__ void accumulate_density_OnDevice_Kernel(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* density_accumulated, int b_r_t_VERTEX_dmn_size)
+{
+  const int id_i = blockIdx.x * blockDim.x + threadIdx.x;
+  
+      if (id_i >= b_r_t_VERTEX_dmn_size) return;
+  
+      const int t_VERTEX_dmn_size = tpeqtime_helper.get_t_VERTEX_dmn_size();
+      int b_i, r_i, t_i,index;
+      double term;
+
+      b_i = tpeqtime_helper.fixed_config_b_ind(id_i);
+      r_i = tpeqtime_helper.fixed_config_r_ind(id_i);
+      t_i = tpeqtime_helper.fixed_config_t_ind(id_i);
+
+
+        int i = tpeqtime_helper.brt_dmn_index(b_i,r_i,t_i);
+        int j = i;
+
+        double den_val = 2.0 - G_r_t_up[i + j*ldGrt_up] - G_r_t_dn[i + j*ldGrt_dn];  // niup + nidwn
+        
+
+	index = i;
+
+	term = sign * den_val;
+
+        atomicAdd(&density_accumulated[index], term);
+
+
+}
+
+
+
+template <typename ScalarType>
+void accumulate_density_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* density_accumulated, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_)
+{
+
+  const int n = b_r_t_VERTEX_dmn_size;
+  auto blocks = getBlockSize1D(n,128);
+
+     accumulate_density_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(G_r_t_up, ldGrt_up, G_r_t_dn, ldGrt_dn, sign, density_accumulated, b_r_t_VERTEX_dmn_size);
+
+}
+
+
+
+
 
 __global__ void sum_OnDevice_Kernel( double* inMatrix, double* outMatrix, int ldM)
 {
@@ -566,6 +613,12 @@ void sum_OnDevice(double* inMatrix, double* outMatrix, int ldM, cudaStream_t str
      sum_OnDevice_Kernel<<<blocks[0], blocks[1], 0, stream_>>>(inMatrix, outMatrix, ldM);
 
 }
+
+
+template void accumulate_density_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* density_accumulated, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
+
+template void accumulate_density_OnDevice<float>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, float sign, double* density_accumulated, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
+
 
 template void accumulate_moments_OnDevice<double>(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, double sign, double* charge_moment, double * magnetic_moment, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
 

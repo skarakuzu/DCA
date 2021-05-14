@@ -115,6 +115,9 @@ public:
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_dwave_pp_correlator() {
     return dwave_pp_correlator;
   }
+  func::function<double, func::dmn_variadic<b, r_dmn_t, t_VERTEX>>& get_site_dependent_density() {
+    return density_accumulated;
+  }
 
 
   template <class configuration_type, typename RealInp>
@@ -128,6 +131,7 @@ public:
   void accumulate_chi(double sign);
 
   void accumulate_moments(double sign);
+  void accumulate_density(double sign);
 
   void accumulate_dwave_pp_correlator(double sign);
 
@@ -269,6 +273,7 @@ protected:
   func::function<double, r_dmn_t> dwave_r_factor;
 
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>> dwave_pp_correlator;
+  func::function<double, func::dmn_variadic<b, r_dmn_t, t_VERTEX>> density_accumulated;
   dca::linalg::Vector<double, dca::linalg::CPU> r_abs_diff;
 };
 
@@ -298,7 +303,8 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::TpEqualTimeAccu
       charge_cluster_moment("charge-cluster-moment"),
       magnetic_cluster_moment("magnetic-cluster-moment"),
 
-      dwave_pp_correlator("dwave-pp-correlator") {
+      dwave_pp_correlator("dwave-pp-correlator"),
+      density_accumulated("site-dependent-density") {
   
   for (int k_ind = 0; k_ind < k_dmn_t::dmn_size(); k_ind++)
     dwave_k_factor(k_ind) =
@@ -359,6 +365,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::resetAccum
   magnetic_cluster_moment = 0;
 
   dwave_pp_correlator = 0;
+  density_accumulated = 0;
 }
 
 template <class parameters_type, class MOMS_type>
@@ -856,6 +863,28 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
   }
 }
 
+template <class parameters_type, class MOMS_type>
+void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate_density(double sign) {
+  for (int b_ind = 0; b_ind < b::dmn_size(); b_ind++) {
+    for (int r_i = 0; r_i < r_dmn_t::dmn_size(); r_i++) {
+      for (int t_ind = 0; t_ind < t_VERTEX::dmn_size(); t_ind++) {
+        int i = b_r_t_dmn(b_ind, r_i, t_ind);
+        int j = i;
+
+        double den_val = 2.0 - G_r_t_up(i, j) - G_r_t_dn(i, j);  // density niup + nidwn
+
+        density_accumulated(b_ind, r_i, t_ind) += sign * den_val;
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
 /*!
  * P_d
  */
@@ -1139,6 +1168,8 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
   accumulate_dwave_pp_correlator(sign);
 
   accumulate_moments(sign);
+  
+  accumulate_density(sign);
 
 }
 
@@ -1154,6 +1185,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::sumTo(
   other.charge_cluster_moment += charge_cluster_moment;
   other.magnetic_cluster_moment += magnetic_cluster_moment;
   other.dwave_pp_correlator += dwave_pp_correlator;
+  other.density_accumulated += density_accumulated;
   other.GFLOP += GFLOP;
 }
 

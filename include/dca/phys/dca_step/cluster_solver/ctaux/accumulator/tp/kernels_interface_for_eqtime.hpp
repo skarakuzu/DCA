@@ -49,6 +49,10 @@ void accumulate_dwave_pp_correlator_OnDevice(const float * G_r_t_up, int ldGrt_u
 template <typename ScalarType>
 void accumulate_moments_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* charge_moment, double* magnetic_moment, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
 
+
+template <typename ScalarType>
+void accumulate_density_OnDevice(const float * G_r_t_up, int ldGrt_up, const float* G_r_t_dn, int ldGrt_dn, ScalarType sign, double* density_arr, int b_r_t_VERTEX_dmn_size,  cudaStream_t stream_);
+
 void sum_OnDevice(double* inMatrix, double* outMatrix, int ldM, cudaStream_t stream_);
 
 }  // ctaux

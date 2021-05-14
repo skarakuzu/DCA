@@ -177,6 +177,9 @@ public:
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_charge_chi() {
     return charge_chi_accumulated;
   }
+  func::function<double, func::dmn_variadic<b, r_dmn_t, t_VERTEX>>& get_site_dependent_density() {
+    return density_accumulated;
+  }
 
 private:
 
@@ -278,6 +281,7 @@ private:
   using BaseClass::dwave_r_factor;
 
   using BaseClass::dwave_pp_correlator;
+  using BaseClass::density_accumulated;
 
   using MatrixHost_dble = dca::linalg::Matrix<double, dca::linalg::CPU>;
   using MatrixHost_flt = dca::linalg::Matrix<float, dca::linalg::CPU>;
@@ -314,6 +318,7 @@ private:
   dca::linalg::Vector<double, dca::linalg::GPU> charge_chi_accumulated_dev;
   dca::linalg::Vector<double, dca::linalg::GPU> charge_cluster_moment_dev;
   dca::linalg::Vector<double, dca::linalg::GPU> magnetic_cluster_moment_dev;
+  dca::linalg::Vector<double, dca::linalg::GPU> density_accumulated_dev;
  
 
 
@@ -365,6 +370,8 @@ TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::TpEqualTimeAccu
   charge_cluster_moment_dev.resizeNoCopy(b::dmn_size()*r_dmn_t::dmn_size());
   assert(cudaPeekAtLastError() == cudaSuccess);
   magnetic_cluster_moment_dev.resizeNoCopy(b::dmn_size()*r_dmn_t::dmn_size());
+  assert(cudaPeekAtLastError() == cudaSuccess);
+  density_accumulated_dev.resizeNoCopy(b::dmn_size()*r_dmn_t::dmn_size()*t_VERTEX::dmn_size());
   assert(cudaPeekAtLastError() == cudaSuccess);
 
 
@@ -606,6 +613,8 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::resetAccum
   magnetic_cluster_moment_dev.setToZeroAsync(streams_[1]);
   assert(cudaPeekAtLastError() == cudaSuccess);
 
+  density_accumulated_dev.setToZeroAsync(streams_[1]);
+  assert(cudaPeekAtLastError() == cudaSuccess);
 }
 
 template <class parameters_type, class MOMS_type>
@@ -700,6 +709,10 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::finalize()
 
   cudaMemcpy(magnetic_cluster_moment.values(), magnetic_cluster_moment_dev.ptr(), magnetic_cluster_moment.size()* sizeof(double), 
              cudaMemcpyDeviceToHost);
+  
+  cudaMemcpy(density_accumulated.values(), density_accumulated_dev.ptr(), density_accumulated.size()* sizeof(double), 
+             cudaMemcpyDeviceToHost);
+
 
   synchronizeStreams();
 
@@ -880,10 +893,13 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::accumulate
   accumulate_chi_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,spin_ZZ_chi_accumulated_dev.ptr(),  spin_ZZ_chi_stddev_dev.ptr(), spin_XX_chi_accumulated_dev.ptr(), charge_chi_accumulated_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), r_dmn_t::dmn_size() ,t_VERTEX::dmn_size(), streams_[1]);
   assert(cudaPeekAtLastError() == cudaSuccess);
 
-  accumulate_dwave_pp_correlator_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,dwave_pp_correlator_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), dwave_config_size, streams_[0]);
-  assert(cudaPeekAtLastError() == cudaSuccess);
+//  accumulate_dwave_pp_correlator_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) ,dwave_pp_correlator_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), dwave_config_size, streams_[0]);
+//  assert(cudaPeekAtLastError() == cudaSuccess);
 
-  accumulate_moments_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) , charge_cluster_moment_dev.ptr(), magnetic_cluster_moment_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), streams_[1]);
+//  accumulate_moments_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) , charge_cluster_moment_dev.ptr(), magnetic_cluster_moment_dev.ptr(), b_r_t_VERTEX_dmn_t::dmn_size(), streams_[1]);
+//  assert(cudaPeekAtLastError() == cudaSuccess);
+
+  accumulate_density_OnDevice(G_r_t_up_dev.ptr(), G_r_t_up_dev.leadingDimension(), G_r_t_dn_dev.ptr(), G_r_t_dn_dev.leadingDimension(), static_cast<RealInp>(sign) , density_accumulated_dev.ptr(),  b_r_t_VERTEX_dmn_t::dmn_size(), streams_[1]);
   assert(cudaPeekAtLastError() == cudaSuccess);
 
   synchronizeStreams();
@@ -934,6 +950,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::GPU>::sumTo(this
   sum_OnDevice(dwave_pp_correlator_dev.ptr(), other.dwave_pp_correlator_dev.ptr(), dwave_pp_correlator_dev.size(),streams_[0]);
   sum_OnDevice(charge_cluster_moment_dev.ptr(), other.charge_cluster_moment_dev.ptr(), charge_cluster_moment_dev.size(),streams_[1]);
   sum_OnDevice(magnetic_cluster_moment_dev.ptr(), other.magnetic_cluster_moment_dev.ptr(), magnetic_cluster_moment_dev.size(),streams_[0]);
+  sum_OnDevice(density_accumulated_dev.ptr(), other.density_accumulated_dev.ptr(), density_accumulated_dev.size(),streams_[1]);
 
   synchronizeStreams();
 
