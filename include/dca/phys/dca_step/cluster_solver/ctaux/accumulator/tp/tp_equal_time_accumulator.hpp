@@ -871,7 +871,7 @@ void TpEqualTimeAccumulator<parameters_type, MOMS_type, linalg::CPU>::accumulate
         int i = b_r_t_dmn(b_ind, r_i, t_ind);
         int j = i;
 
-        double den_val = 2.0 - G_r_t_up(i, j) - G_r_t_dn(i, j);  // density niup + nidwn
+        double den_val = 2.0 + G_r_t_up(i, j) + G_r_t_dn(i, j);  // density niup + nidwn
 
         density_accumulated(b_ind, r_i, t_ind) += sign * den_val;
       }

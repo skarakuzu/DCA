@@ -563,7 +563,7 @@ __global__ void accumulate_density_OnDevice_Kernel(const float * G_r_t_up, int l
         int i = tpeqtime_helper.brt_dmn_index(b_i,r_i,t_i);
         int j = i;
 
-        double den_val = 2.0 - G_r_t_up[i + j*ldGrt_up] - G_r_t_dn[i + j*ldGrt_dn];  // niup + nidwn
+        double den_val = 2.0 + G_r_t_up[i + j*ldGrt_up] + G_r_t_dn[i + j*ldGrt_dn];  // niup + nidwn
         
 
 	index = i;
