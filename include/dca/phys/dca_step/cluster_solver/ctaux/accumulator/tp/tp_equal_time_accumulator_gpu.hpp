@@ -156,6 +156,10 @@ public:
   func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t_stddev() {
     return G_r_t_stddev;
   }
+  func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t_VERTEX>>& get_G_r_t_accumulated() {
+    return G_r_t_accumulated;
+  }
+
   func::function<double, func::dmn_variadic<b, r_dmn_t>>& get_charge_cluster_moment() {
     return charge_cluster_moment;
   }
