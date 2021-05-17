@@ -120,6 +120,9 @@ public:
   func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t>>& get_G_r_t_stddev() {
     return equal_time_accumulator_.get_G_r_t_stddev();
   }
+  func::function<double, func::dmn_variadic<nu, nu, r_dmn_t, t_VERTEX>>& get_G_r_t_accumulated() {
+    return equal_time_accumulator_.get_G_r_t_accumulated();
+  }
   func::function<double, func::dmn_variadic<b, b, r_dmn_t, t_VERTEX>>& get_spin_ZZ_chi() {
     return equal_time_accumulator_.get_spin_ZZ_chi();
   }
@@ -330,6 +333,7 @@ void CtauxAccumulator<device_t, Parameters, Data>::write(Writer& writer) {
 
     writer.execute(get_G_r_t());
     writer.execute(get_G_r_t_stddev());
+    writer.execute(get_G_r_t_accumulated());
 
     writer.execute(get_spin_ZZ_chi());
     writer.execute(get_spin_ZZ_chi_stddev());

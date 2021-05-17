@@ -439,6 +439,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
       Profiler profiler("Additional time measurements.", "QMC-collectives", __LINE__);
       concurrency_.delayedSum(accumulator_.get_G_r_t());
       concurrency_.delayedSum(accumulator_.get_G_r_t_stddev());
+      concurrency_.delayedSum(accumulator_.get_G_r_t_accumulated());
       concurrency_.delayedSum(accumulator_.get_spin_ZZ_chi());
       concurrency_.delayedSum(accumulator_.get_spin_ZZ_chi_stddev());
       concurrency_.delayedSum(accumulator_.get_spin_XX_chi());
@@ -478,6 +479,7 @@ void CtauxClusterSolver<device_t, Parameters, Data>::collect_measurements() {
     accumulator_.get_G_r_t() /= accumulated_sign_;
     data_.G_r_t = accumulator_.get_G_r_t();
     accumulator_.get_G_r_t_stddev() /= accumulated_sign_ * std::sqrt(parameters_.get_measurements());
+    accumulator_.get_G_r_t_accumulated() /= accumulated_sign_;
     accumulator_.get_spin_ZZ_chi() /= accumulated_sign_;
     accumulator_.get_spin_ZZ_chi_stddev() /= accumulated_sign_;
     accumulator_.get_spin_XX_chi() /= accumulated_sign_;
